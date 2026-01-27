@@ -1,0 +1,19 @@
+echo "Running pre-push checks..."
+
+# Type check the web app
+echo "Type checking web app..."
+pnpm --filter @ai-app-builder/web exec tsc --noEmit
+
+# Type check the API
+echo "Type checking API..."
+pnpm --filter @ai-app-builder/api exec tsc --noEmit
+
+# Build shared packages
+echo "Building shared packages..."
+pnpm --filter @ai-app-builder/shared build
+
+# Lint all packages
+echo "Linting..."
+pnpm lint
+
+echo "All pre-push checks passed!"

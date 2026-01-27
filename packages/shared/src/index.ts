@@ -1,0 +1,94 @@
+// Shared types for API contracts
+
+// User types
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Project types
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+}
+
+// Chat types
+export interface Chat {
+  id: string;
+  projectId: string;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type MessageRole = "user" | "assistant" | "system";
+
+export interface Message {
+  id: string;
+  chatId: string;
+  role: MessageRole;
+  content: string;
+  createdAt: Date;
+}
+
+export interface SendMessageInput {
+  chatId: string;
+  content: string;
+}
+
+// API Response types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// WebSocket event types
+export type WebSocketEvent =
+  | { type: "message"; payload: Message }
+  | { type: "file_change"; payload: FileChange }
+  | { type: "terminal_output"; payload: TerminalOutput }
+  | { type: "preview_update"; payload: PreviewUpdate };
+
+export interface FileChange {
+  path: string;
+  content: string;
+  action: "create" | "update" | "delete";
+}
+
+export interface TerminalOutput {
+  sessionId: string;
+  output: string;
+  isError: boolean;
+}
+
+export interface PreviewUpdate {
+  url: string;
+  status: "loading" | "ready" | "error";
+}
+
+// Constants
+export const API_VERSION = "v1";
+export const MAX_MESSAGE_LENGTH = 10000;
+export const MAX_PROJECT_NAME_LENGTH = 100;
