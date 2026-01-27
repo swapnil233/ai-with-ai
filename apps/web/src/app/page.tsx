@@ -1,16 +1,44 @@
+"use client";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/components/providers/auth-provider";
+import { signOut } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const { session, isPending } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  if (isPending) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Left Panel - Chat Interface */}
       <div className="flex w-1/2 flex-col border-r">
-        <header className="flex h-14 items-center border-b px-4">
+        <header className="flex h-14 items-center justify-between border-b px-4">
           <h1 className="text-lg font-semibold">AI App Builder</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{session?.user?.email}</span>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              Sign out
+            </Button>
+          </div>
         </header>
 
         <ScrollArea className="flex-1 p-4">

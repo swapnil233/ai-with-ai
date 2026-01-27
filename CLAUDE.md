@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## What is this app?
+
+This is an **AI-powered no-code application builder**. Users can create applications by describing what they want in natural language (ChatGPT-style interface) rather than traditional drag-and-drop.
+
+**How it works:**
+
+- Users chat with an LLM to describe the app they want to build
+- Each project gets its own isolated sandbox environment powered by **Modal**
+- The AI generates and deploys the application within that sandbox
+- Authentication and authorization handled via **better-auth**
+
+**Key integrations:**
+
+- **Modal** - Sandbox environments for running user-created applications
+- **Anthropic API** - LLM for understanding user intent and generating code
+- **better-auth** - User authentication and authorization
+
 ## Build & Development Commands
 
 ```bash
@@ -43,6 +60,7 @@ pnpm --filter @ai-app-builder/api db:studio  # Open Prisma Studio
 
 - **Frontend**: Next.js App Router, React 19, Tailwind CSS v4, shadcn/ui components, Vercel AI SDK
 - **Backend**: Express.js 5, Socket.io for real-time, Prisma ORM, better-auth for authentication, Zod validation
+- **AI/Sandbox**: Anthropic Claude API for LLM, Modal for isolated sandbox environments
 - **Build**: pnpm workspaces + Turborepo for task orchestration and caching
 
 **Path Aliases:**
@@ -78,5 +96,6 @@ Required in `.env` (copy from `.env.example`):
 
 - `DATABASE_URL` - PostgreSQL connection string
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` - Authentication
-- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - AI provider
+- `ANTHROPIC_API_KEY` - Anthropic API for LLM
+- `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` - Modal API for sandbox environments
 - `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` - Frontend API endpoints
