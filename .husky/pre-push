@@ -12,6 +12,10 @@ pnpm --filter @ai-app-builder/api exec tsc --noEmit
 echo "Building shared packages..."
 pnpm --filter @ai-app-builder/shared build
 
+# Run tests
+echo "Running tests..."
+pnpm test
+
 # Lint all packages
 echo "Linting..."
 pnpm lint

@@ -1,13 +1,10 @@
-import express, { type Express } from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import cors from "cors";
 import dotenv from "dotenv";
-import { healthRouter } from "./routes/health.js";
+import { app } from "./app.js";
 
 dotenv.config();
 
-const app: Express = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -17,18 +14,6 @@ const io = new Server(httpServer, {
 });
 
 const PORT = process.env.API_PORT || 4000;
-
-// Middleware
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-    credentials: true,
-  })
-);
-app.use(express.json());
-
-// Routes
-app.use("/health", healthRouter);
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
