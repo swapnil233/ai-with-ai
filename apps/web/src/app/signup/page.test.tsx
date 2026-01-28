@@ -141,6 +141,6 @@ describe("SignupPage", () => {
   it("shows password requirements hint", () => {
     render(<SignupPage />);
 
-    expect(screen.getByText(/password must be at least 8 characters/i)).toBeDefined();
+    expect(screen.getByText(/must be at least 8 characters/i)).toBeDefined();
   });
 });

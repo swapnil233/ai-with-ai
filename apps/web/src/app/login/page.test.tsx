@@ -32,7 +32,9 @@ describe("LoginPage", () => {
   it("renders login form", () => {
     render(<LoginPage />);
 
-    expect(screen.getByText(/sign in/i, { selector: "[data-slot='card-title']" })).toBeDefined();
+    expect(
+      screen.getByText(/welcome back/i, { selector: "[data-slot='card-title']" })
+    ).toBeDefined();
     expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/password/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeDefined();
