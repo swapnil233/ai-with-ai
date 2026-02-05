@@ -10,9 +10,11 @@
     "test:watch": "turbo test:watch",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
+    "db:start": "docker compose -f docker/docker-compose.yml up postgres -d",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",
+    "setup": "pnpm db:start && sleep 2 && pnpm db:push",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -24,7 +26,7 @@
     "turbo": "^2.3.3",
     "typescript": "^5.7.3"
   },
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.28.2",
   "engines": {
     "node": ">=20"
   }

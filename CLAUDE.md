@@ -38,6 +38,13 @@ pnpm test:watch                              # Watch mode
 pnpm --filter @ai-app-builder/api test       # API tests only
 pnpm --filter @ai-app-builder/web test       # Web tests only
 
+# Run a single test file
+pnpm --filter @ai-app-builder/api test src/routes/health.test.ts
+pnpm --filter @ai-app-builder/web test src/lib/utils.test.ts
+
+# Adding UI components (shadcn)
+cd apps/web && npx shadcn@latest add [component-name]
+
 # Database (requires DATABASE_URL in .env)
 pnpm db:generate                             # Generate Prisma client
 pnpm db:push                                 # Push schema to database
@@ -73,6 +80,8 @@ pnpm --filter @ai-app-builder/api db:studio  # Open Prisma Studio
 - `src/index.ts` - Server startup with Socket.io - avoid importing in tests
 - `src/routes/` - Route handlers
 - `src/lib/prisma.ts` - Database client singleton
+
+**Important Pattern**: better-auth handler must be mounted BEFORE `express.json()` middleware (it handles its own body parsing).
 
 **Shared Types:**
 The `@ai-app-builder/shared` package exports User, Project, Chat, Message types, API response wrappers, and WebSocket event types. Build shared package first when types change (`pnpm --filter @ai-app-builder/shared build`).

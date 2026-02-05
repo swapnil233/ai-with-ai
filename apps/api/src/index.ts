@@ -1,10 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config({ path: "../../.env" });
+
 import { createServer } from "http";
 import { Server } from "socket.io";
-import dotenv from "dotenv";
 import { app } from "./app.js";
 import { auth } from "./lib/auth.js";
-
-dotenv.config();
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
