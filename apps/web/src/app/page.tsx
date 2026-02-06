@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/auth-provider";
-import { signOut } from "@/lib/auth-client";
+import { useSignOutMutation } from "@/lib/auth-queries";
 import { useRouter } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -40,6 +40,7 @@ import {
 export default function Home() {
   const { session, isPending } = useAuth();
   const router = useRouter();
+  const signOutMutation = useSignOutMutation();
   const [input, setInput] = useState("");
 
   const { messages, sendMessage, status, stop, error } = useChat();
@@ -51,9 +52,13 @@ export default function Home() {
   }, [isPending, session, router]);
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push("/login");
-    router.refresh();
+    try {
+      await signOutMutation.mutateAsync();
+      router.push("/login");
+      router.refresh();
+    } catch {
+      // Keep user in place if sign-out fails.
+    }
   };
 
   const handleSendMessage = async (text: string) => {
@@ -96,8 +101,9 @@ export default function Home() {
                 size="sm"
                 className="h-8 text-chat-muted hover:bg-chat-input-bg hover:text-chat-foreground"
                 onClick={handleSignOut}
+                disabled={signOutMutation.isPending}
               >
-                Sign out
+                {signOutMutation.isPending ? "Signing out..." : "Sign out"}
               </Button>
             </div>
           </header>

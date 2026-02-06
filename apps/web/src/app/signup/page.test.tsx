@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SignupPage from "./page";
 
 // Hoisted mocks
-const { mockPush, mockRefresh, mockSignUp } = vi.hoisted(() => ({
+const { mockPush, mockRefresh, mockMutateAsync, mockUseSignUpMutation } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockRefresh: vi.fn(),
-  mockSignUp: vi.fn(),
+  mockMutateAsync: vi.fn(),
+  mockUseSignUpMutation: vi.fn(),
 }));
 
 // Mock next/navigation
@@ -17,16 +18,18 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Mock auth-client
-vi.mock("@/lib/auth-client", () => ({
-  signUp: {
-    email: mockSignUp,
-  },
+// Mock auth queries
+vi.mock("@/lib/auth-queries", () => ({
+  useSignUpMutation: () => mockUseSignUpMutation(),
 }));
 
 describe("SignupPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSignUpMutation.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: false,
+    });
   });
 
   it("renders signup form", () => {
@@ -50,7 +53,7 @@ describe("SignupPage", () => {
   });
 
   it("submits form with name, email and password", async () => {
-    mockSignUp.mockResolvedValueOnce({ data: { user: { id: "1" } } });
+    mockMutateAsync.mockResolvedValueOnce({ user: { id: "1" } });
 
     render(<SignupPage />);
 
@@ -65,7 +68,7 @@ describe("SignupPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockSignUp).toHaveBeenCalledWith({
+      expect(mockMutateAsync).toHaveBeenCalledWith({
         name: "Test User",
         email: "test@example.com",
         password: "password123",
@@ -74,7 +77,7 @@ describe("SignupPage", () => {
   });
 
   it("redirects to home on successful signup", async () => {
-    mockSignUp.mockResolvedValueOnce({ data: { user: { id: "1" } } });
+    mockMutateAsync.mockResolvedValueOnce({ user: { id: "1" } });
 
     render(<SignupPage />);
 
@@ -95,9 +98,7 @@ describe("SignupPage", () => {
   });
 
   it("shows error message on failed signup", async () => {
-    mockSignUp.mockResolvedValueOnce({
-      error: { message: "Email already exists" },
-    });
+    mockMutateAsync.mockRejectedValueOnce(new Error("Email already exists"));
 
     render(<SignupPage />);
 
@@ -116,26 +117,14 @@ describe("SignupPage", () => {
     });
   });
 
-  it("disables form while loading", async () => {
-    mockSignUp.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ data: {} }), 100))
-    );
+  it("disables form while loading", () => {
+    mockUseSignUpMutation.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: true,
+    });
 
     render(<SignupPage />);
-
-    const nameInput = screen.getByLabelText(/name/i);
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const submitButton = screen.getByRole("button", { name: /create account/i });
-
-    fireEvent.change(nameInput, { target: { value: "Test User" } });
-    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-    fireEvent.change(passwordInput, { target: { value: "password123" } });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /creating account/i })).toBeDefined();
-    });
+    expect(screen.getByRole("button", { name: /creating account/i })).toBeDefined();
   });
 
   it("shows password requirements hint", () => {

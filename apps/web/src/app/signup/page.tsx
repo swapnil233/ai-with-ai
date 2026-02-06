@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signUp } from "@/lib/auth-client";
+import { useSignUpMutation } from "@/lib/auth-queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,31 +19,29 @@ import { Sparkles } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
+  const signUpMutation = useSignUpMutation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = signUpMutation.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
-    const result = await signUp.email({
-      name,
-      email,
-      password,
-    });
+    try {
+      await signUpMutation.mutateAsync({
+        name,
+        email,
+        password,
+      });
 
-    if (result.error) {
-      setError(result.error.message || "Failed to create account");
-      setIsLoading(false);
-      return;
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create account");
     }
-
-    router.push("/");
-    router.refresh();
   };
 
   return (

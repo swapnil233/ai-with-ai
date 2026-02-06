@@ -2,18 +2,18 @@
 
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import { type AuthSession, useAuthSessionQuery } from "@/lib/auth-queries";
 
 interface AuthContextType {
-  session: ReturnType<typeof useSession>["data"];
+  session: AuthSession | null;
   isPending: boolean;
-  error: ReturnType<typeof useSession>["error"];
+  error: Error | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: session, isPending, error } = useSession();
+  const { data: session, isPending, error } = useAuthSessionQuery();
   const router = useRouter();
 
   // Refresh router when auth state changes

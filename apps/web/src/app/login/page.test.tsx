@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import LoginPage from "./page";
 
 // Hoisted mocks
-const { mockPush, mockRefresh, mockSignIn } = vi.hoisted(() => ({
+const { mockPush, mockRefresh, mockMutateAsync, mockUseSignInMutation } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockRefresh: vi.fn(),
-  mockSignIn: vi.fn(),
+  mockMutateAsync: vi.fn(),
+  mockUseSignInMutation: vi.fn(),
 }));
 
 // Mock next/navigation
@@ -17,16 +18,18 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Mock auth-client
-vi.mock("@/lib/auth-client", () => ({
-  signIn: {
-    email: mockSignIn,
-  },
+// Mock auth queries
+vi.mock("@/lib/auth-queries", () => ({
+  useSignInMutation: () => mockUseSignInMutation(),
 }));
 
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSignInMutation.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: false,
+    });
   });
 
   it("renders login form", () => {
@@ -49,7 +52,7 @@ describe("LoginPage", () => {
   });
 
   it("submits form with email and password", async () => {
-    mockSignIn.mockResolvedValueOnce({ data: { user: { id: "1" } } });
+    mockMutateAsync.mockResolvedValueOnce({ user: { id: "1" } });
 
     render(<LoginPage />);
 
@@ -62,7 +65,7 @@ describe("LoginPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith({
+      expect(mockMutateAsync).toHaveBeenCalledWith({
         email: "test@example.com",
         password: "password123",
       });
@@ -70,7 +73,7 @@ describe("LoginPage", () => {
   });
 
   it("redirects to home on successful login", async () => {
-    mockSignIn.mockResolvedValueOnce({ data: { user: { id: "1" } } });
+    mockMutateAsync.mockResolvedValueOnce({ user: { id: "1" } });
 
     render(<LoginPage />);
 
@@ -89,9 +92,7 @@ describe("LoginPage", () => {
   });
 
   it("shows error message on failed login", async () => {
-    mockSignIn.mockResolvedValueOnce({
-      error: { message: "Invalid credentials" },
-    });
+    mockMutateAsync.mockRejectedValueOnce(new Error("Invalid credentials"));
 
     render(<LoginPage />);
 
@@ -108,23 +109,13 @@ describe("LoginPage", () => {
     });
   });
 
-  it("disables form while loading", async () => {
-    mockSignIn.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ data: {} }), 100))
-    );
+  it("disables form while loading", () => {
+    mockUseSignInMutation.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: true,
+    });
 
     render(<LoginPage />);
-
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const submitButton = screen.getByRole("button", { name: /sign in/i });
-
-    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-    fireEvent.change(passwordInput, { target: { value: "password123" } });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /signing in/i })).toBeDefined();
-    });
+    expect(screen.getByRole("button", { name: /signing in/i })).toBeDefined();
   });
 });

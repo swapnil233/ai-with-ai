@@ -10,10 +10,10 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Mock auth-client
-const mockUseSession = vi.fn();
-vi.mock("@/lib/auth-client", () => ({
-  useSession: () => mockUseSession(),
+// Mock auth query hook
+const mockUseAuthSessionQuery = vi.fn();
+vi.mock("@/lib/auth-queries", () => ({
+  useAuthSessionQuery: () => mockUseAuthSessionQuery(),
 }));
 
 // Test component that uses useAuth
@@ -32,7 +32,7 @@ describe("AuthProvider", () => {
   });
 
   it("provides loading state", () => {
-    mockUseSession.mockReturnValue({
+    mockUseAuthSessionQuery.mockReturnValue({
       data: null,
       isPending: true,
       error: null,
@@ -48,7 +48,7 @@ describe("AuthProvider", () => {
   });
 
   it("provides session data when authenticated", () => {
-    mockUseSession.mockReturnValue({
+    mockUseAuthSessionQuery.mockReturnValue({
       data: {
         user: { email: "test@example.com" },
         session: { id: "session-123" },
@@ -67,7 +67,7 @@ describe("AuthProvider", () => {
   });
 
   it("provides null session when not authenticated", () => {
-    mockUseSession.mockReturnValue({
+    mockUseAuthSessionQuery.mockReturnValue({
       data: null,
       isPending: false,
       error: null,
@@ -83,7 +83,7 @@ describe("AuthProvider", () => {
   });
 
   it("provides error state", () => {
-    mockUseSession.mockReturnValue({
+    mockUseAuthSessionQuery.mockReturnValue({
       data: null,
       isPending: false,
       error: { message: "Session expired" },
@@ -99,7 +99,7 @@ describe("AuthProvider", () => {
   });
 
   it("refreshes router when session changes", () => {
-    mockUseSession.mockReturnValue({
+    mockUseAuthSessionQuery.mockReturnValue({
       data: { user: { email: "test@example.com" } },
       isPending: false,
       error: null,
