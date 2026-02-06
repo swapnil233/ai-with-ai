@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
+import { logAuditEvent } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
+import { getRequestIp } from "../middleware/security.js";
 
 const router: Router = Router();
 
@@ -50,6 +52,18 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       name: parsedBody.data.name,
       description: description && description.length > 0 ? description : null,
       userId,
+    },
+  });
+
+  logAuditEvent({
+    action: "project.create",
+    requestId: req.requestId,
+    status: "success",
+    sourceIp: getRequestIp(req),
+    userId,
+    metadata: {
+      projectId: createdProject.id,
+      projectName: createdProject.name,
     },
   });
 

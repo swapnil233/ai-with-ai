@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   projectQueryKeys,
+  resetCsrfTokenCache,
   useCreateProjectMutation,
   useProjectQuery,
   useProjectsQuery,
@@ -35,6 +36,7 @@ const createWrapper = (queryClient: QueryClient) =>
 describe("projects-queries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetCsrfTokenCache();
     global.fetch = mockFetch as typeof fetch;
   });
 
@@ -107,6 +109,19 @@ describe("projects-queries", () => {
     };
 
     mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          csrfToken: "csrf-token-123",
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      )
+    );
+    mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify(createdProject), {
         status: 201,
         headers: {
@@ -135,10 +150,14 @@ describe("projects-queries", () => {
       "project-existing",
     ]);
     expect(cachedDetail).toEqual(createdProject);
-    expect(mockFetch).toHaveBeenCalledWith("http://localhost:4000/api/projects", {
+    expect(mockFetch).toHaveBeenNthCalledWith(1, "http://localhost:4000/api/security/csrf-token", {
+      credentials: "include",
+    });
+    expect(mockFetch).toHaveBeenNthCalledWith(2, "http://localhost:4000/api/projects", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-CSRF-Token": "csrf-token-123",
       },
       credentials: "include",
       body: JSON.stringify({

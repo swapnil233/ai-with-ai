@@ -24,6 +24,12 @@ interface UseProjectQueryOptions {
   enabled?: boolean;
 }
 
+interface CsrfTokenResponse {
+  csrfToken: string;
+}
+
+let csrfTokenCache: string | null = null;
+
 const projectQueryKeys = {
   all: ["projects"] as const,
   detail: (projectId: string) => [...projectQueryKeys.all, projectId] as const,
@@ -74,10 +80,12 @@ const fetchProject = async (projectId: string): Promise<Project> => {
 };
 
 const createProject = async (payload: CreateProjectInput): Promise<Project> => {
+  const csrfToken = await getCsrfToken();
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
     },
     credentials: "include",
     body: JSON.stringify(payload),
@@ -89,6 +97,29 @@ const createProject = async (payload: CreateProjectInput): Promise<Project> => {
   }
 
   return (await response.json()) as Project;
+};
+
+const getCsrfToken = async (): Promise<string> => {
+  if (csrfTokenCache) {
+    return csrfTokenCache;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/security/csrf-token`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const errorMessage = await readErrorMessage(response, "Failed to fetch CSRF token");
+    throw new Error(errorMessage);
+  }
+
+  const data = (await response.json()) as CsrfTokenResponse;
+  if (!data.csrfToken || data.csrfToken.trim().length === 0) {
+    throw new Error("Failed to fetch CSRF token");
+  }
+
+  csrfTokenCache = data.csrfToken;
+  return csrfTokenCache;
 };
 
 export const useProjectsQuery = (options?: UseProjectsQueryOptions) =>
@@ -132,6 +163,10 @@ export const useCreateProjectMutation = () => {
       queryClient.setQueryData(projectQueryKeys.detail(project.id), project);
     },
   });
+};
+
+export const resetCsrfTokenCache = () => {
+  csrfTokenCache = null;
 };
 
 export { projectQueryKeys };

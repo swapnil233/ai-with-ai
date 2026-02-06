@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
 const { mockGetSession, mockProjectCreate, mockProjectFindFirst, mockProjectFindMany } = vi.hoisted(
@@ -57,6 +57,20 @@ describe("Project Routes", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const getCsrfContext = async () => {
+    const agent = request.agent(app);
+    const csrfResponse = await agent.get("/api/security/csrf-token");
+
+    return {
+      agent,
+      csrfToken: csrfResponse.body.csrfToken as string,
+    };
+  };
+
   describe("GET /api/projects", () => {
     it("returns 401 when user is not authenticated", async () => {
       mockGetSession.mockResolvedValueOnce(null);
@@ -93,10 +107,47 @@ describe("Project Routes", () => {
   });
 
   describe("POST /api/projects", () => {
-    it("returns 400 for an invalid payload", async () => {
+    it("returns 403 when CSRF token is missing", async () => {
       mockGetSession.mockResolvedValue(createMockSession());
 
-      const response = await request(app).post("/api/projects").send({ name: "" });
+      const response = await request(app)
+        .post("/api/projects")
+        .set("Origin", "http://localhost:3000")
+        .send({
+          name: "No CSRF",
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Invalid CSRF token" });
+      expect(mockProjectCreate).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 for untrusted origins on state-changing requests", async () => {
+      mockGetSession.mockResolvedValue(createMockSession());
+      const { agent, csrfToken } = await getCsrfContext();
+
+      const response = await agent
+        .post("/api/projects")
+        .set("Origin", "https://evil.example")
+        .set("X-CSRF-Token", csrfToken)
+        .send({
+          name: "Blocked Project",
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Forbidden origin" });
+      expect(mockProjectCreate).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for an invalid payload", async () => {
+      mockGetSession.mockResolvedValue(createMockSession());
+      const { agent, csrfToken } = await getCsrfContext();
+
+      const response = await agent
+        .post("/api/projects")
+        .set("Origin", "http://localhost:3000")
+        .set("X-CSRF-Token", csrfToken)
+        .send({ name: "" });
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: "Project name is required" });
@@ -105,6 +156,8 @@ describe("Project Routes", () => {
 
     it("creates a project for the authenticated user", async () => {
       mockGetSession.mockResolvedValue(createMockSession());
+      const consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+      const { agent, csrfToken } = await getCsrfContext();
       mockProjectCreate.mockResolvedValueOnce({
         id: "project-2",
         name: "CRM Dashboard",
@@ -114,9 +167,13 @@ describe("Project Routes", () => {
         updatedAt: new Date("2026-01-03T00:00:00.000Z"),
       });
 
-      const response = await request(app).post("/api/projects").send({
-        name: "CRM Dashboard",
-      });
+      const response = await agent
+        .post("/api/projects")
+        .set("Origin", "http://localhost:3000")
+        .set("X-CSRF-Token", csrfToken)
+        .send({
+          name: "CRM Dashboard",
+        });
 
       expect(response.status).toBe(201);
       expect(response.body.id).toBe("project-2");
@@ -128,6 +185,9 @@ describe("Project Routes", () => {
           userId: "user-123",
         },
       });
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"action":"project.create"')
+      );
     });
   });
 
