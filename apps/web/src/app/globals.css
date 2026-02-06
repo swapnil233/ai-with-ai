@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Required for MessageResponse component from AI Elements */
+@source "../node_modules/streamdown/dist/*.js";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -87,12 +90,12 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   /* Chat panel - dark charcoal theme */
-  --chat-bg: oklch(0.21 0.006 285.75);
+  --chat-bg: oklch(0.18 0.006 285.75);
   --chat-foreground: oklch(0.95 0 0);
   --chat-muted: oklch(0.65 0 0);
-  --chat-border: oklch(0.30 0.006 285.75);
-  --chat-input-bg: oklch(0.26 0.006 285.75);
-  --chat-user-bubble: oklch(0.35 0.006 285.75);
+  --chat-border: oklch(0.28 0.006 285.75);
+  --chat-input-bg: oklch(0.28 0.006 285.75);
+  --chat-user-bubble: oklch(0.95 0 0);
 }
 
 .dark {
