@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSignOutMutation } from "@/lib/auth-queries";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -42,8 +43,10 @@ export default function Home() {
   const router = useRouter();
   const signOutMutation = useSignOutMutation();
   const [input, setInput] = useState("");
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
 
   const { messages, sendMessage, status, stop, error } = useChat();
+  const isMobilePreview = previewDevice === "mobile";
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -248,14 +251,26 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                aria-label="Desktop preview"
+                aria-pressed={!isMobilePreview}
+                className={cn(
+                  "h-8 w-8 text-muted-foreground hover:text-foreground",
+                  !isMobilePreview && "bg-muted text-foreground hover:bg-muted"
+                )}
+                onClick={() => setPreviewDevice("desktop")}
               >
                 <Monitor className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                aria-label="Mobile preview"
+                aria-pressed={isMobilePreview}
+                className={cn(
+                  "h-8 w-8 text-muted-foreground hover:text-foreground",
+                  isMobilePreview && "bg-muted text-foreground hover:bg-muted"
+                )}
+                onClick={() => setPreviewDevice("mobile")}
               >
                 <Smartphone className="h-4 w-4" />
               </Button>
@@ -292,7 +307,12 @@ export default function Home() {
 
           {/* Preview Content Area */}
           <div className="flex flex-1 items-center justify-center p-6">
-            <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-white dark:bg-gray-800 shadow-sm">
+            <div
+              className={cn(
+                "flex h-full w-full flex-col overflow-hidden border border-border bg-white shadow-sm transition-all duration-300 dark:bg-gray-800",
+                isMobilePreview ? "max-h-[760px] max-w-[390px] rounded-[28px]" : "rounded-lg"
+              )}
+            >
               {/* Browser-like frame */}
               <div className="flex h-10 items-center gap-2 border-b border-border bg-gray-50 dark:bg-gray-900 px-4">
                 <div className="flex gap-1.5">
