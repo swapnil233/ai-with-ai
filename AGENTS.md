@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+## Product Context
+
+- This repository is an **AI app builder**. Users describe what they want in chat, and the system generates and iterates on real applications.
+- The product aims to build full-stack apps (frontend, backend, database, auth), not just UI snippets.
+- `apps/web` is the control-plane UI where users chat, inspect output, and manage projects.
+- `apps/api` is the control-plane backend for auth, project/chat state, and orchestration.
+- Generated apps are intended to run in isolated sandbox infrastructure (for example Modal) for preview/build execution, while durable state (project metadata, code versions, long-lived data) is kept outside ephemeral runtimes.
+- When making changes, optimize for this workflow: **prompt -> generation -> sandbox preview -> persist -> resume later**.
+
 ## Project Structure & Module Organization
 
 - `apps/web`: Next.js frontend (App Router). Main code lives in `apps/web/src/app`, `apps/web/src/components`, and `apps/web/src/lib`; static assets are in `apps/web/public`.
