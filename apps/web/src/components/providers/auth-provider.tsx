@@ -15,16 +15,19 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data: session, isPending, error } = useAuthSessionQuery();
   const router = useRouter();
+  const resolvedSession = session ?? null;
 
   // Refresh router when auth state changes
   useEffect(() => {
     if (!isPending) {
       router.refresh();
     }
-  }, [session, isPending, router]);
+  }, [resolvedSession, isPending, router]);
 
   return (
-    <AuthContext.Provider value={{ session, isPending, error }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ session: resolvedSession, isPending, error }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authClient, signIn, signOut, signUp } from "@/lib/auth-client";
+import { authClient, signIn, signOut, signUp, useSession } from "@/lib/auth-client";
 
 const UNAUTHORIZED_STATUS_CODE = 401;
 const FORBIDDEN_STATUS_CODE = 403;
@@ -8,9 +8,7 @@ const authQueryKeys = {
   session: ["auth", "session"] as const,
 };
 
-type SessionResponse = Awaited<ReturnType<typeof authClient.getSession>>;
-
-export type AuthSession = SessionResponse extends { data: infer SessionData } ? SessionData : never;
+export type AuthSession = NonNullable<ReturnType<typeof useSession>["data"]>;
 
 interface SignInInput {
   email: string;
