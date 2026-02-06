@@ -38,7 +38,8 @@
     "react-dom": "19.2.3",
     "streamdown": "^2.1.0",
     "tailwind-merge": "^3.4.0",
-    "use-stick-to-bottom": "^1.1.2"
+    "use-stick-to-bottom": "^1.1.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

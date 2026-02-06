@@ -79,6 +79,19 @@ export interface SendMessageInput {
   content: string;
 }
 
+// Sandbox types
+export type SandboxStatus = "pending" | "creating" | "running" | "stopped" | "error";
+
+export interface Sandbox {
+  id: string;
+  projectId: string;
+  modalId: string | null;
+  tunnelUrl: string | null;
+  status: SandboxStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   success: boolean;

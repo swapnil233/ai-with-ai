@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "bash -c 'bash scripts/sandbox.sh & SANDBOX_PID=$!; trap \"kill $SANDBOX_PID 2>/dev/null\" EXIT; turbo dev'",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",

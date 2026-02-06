@@ -38,5 +38,9 @@ apps/api/prisma/*.db-journal
 # Docker
 docker/data
 
+# Python
+.venv
+__pycache__
+
 # Misc
 *.tsbuildinfo

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -49,7 +49,22 @@ import {
   Sparkles,
   Paperclip,
   Loader2,
+  Box,
+  FileCode,
+  Terminal,
+  Globe,
 } from "lucide-react";
+
+const TOOL_LABELS: Record<
+  string,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  "tool-createSandbox": { label: "Creating sandbox...", icon: Box },
+  "tool-writeFile": { label: "Writing file...", icon: FileCode },
+  "tool-writeFiles": { label: "Writing files...", icon: FileCode },
+  "tool-runCommand": { label: "Running command...", icon: Terminal },
+  "tool-getPreviewUrl": { label: "Getting preview URL...", icon: Globe },
+};
 
 export default function Home() {
   const { session, isPending } = useAuth();
@@ -59,6 +74,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { messages, sendMessage, status, stop, error } = useChat();
   const {
@@ -84,6 +100,41 @@ export default function Home() {
       router.push("/login");
     }
   }, [isPending, session, router]);
+
+  // Derive preview URL from the latest getPreviewUrl tool result
+  const previewUrl = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role !== "assistant") continue;
+      for (const part of msg.parts) {
+        if (
+          part.type === "tool-getPreviewUrl" &&
+          "state" in part &&
+          part.state === "output-available" &&
+          "output" in part &&
+          part.output &&
+          typeof part.output === "object" &&
+          "previewUrl" in part.output &&
+          typeof part.output.previewUrl === "string"
+        ) {
+          return part.output.previewUrl;
+        }
+      }
+    }
+    return null;
+  }, [messages]);
+
+  const handleRefreshPreview = useCallback(() => {
+    if (iframeRef.current && previewUrl) {
+      iframeRef.current.src = previewUrl;
+    }
+  }, [previewUrl]);
+
+  const handleOpenExternal = useCallback(() => {
+    if (previewUrl) {
+      window.open(previewUrl, "_blank");
+    }
+  }, [previewUrl]);
 
   const handleSignOut = async () => {
     try {
@@ -130,6 +181,11 @@ export default function Home() {
     return message.parts.filter(
       (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
     );
+  };
+
+  // Helper to extract tool invocation parts from message parts
+  const getToolParts = (message: (typeof messages)[number]) => {
+    return message.parts.filter((part) => part.type.startsWith("tool-"));
   };
 
   return (
@@ -215,6 +271,7 @@ export default function Home() {
                       isLastMessage && status === "streaming" && message.role === "assistant";
                     const textParts = getTextParts(message);
                     const reasoningParts = getReasoningParts(message);
+                    const toolParts = message.role === "assistant" ? getToolParts(message) : [];
                     const messageText = textParts.map((part) => part.text).join("");
 
                     return (
@@ -229,6 +286,52 @@ export default function Home() {
                           </Reasoning>
                         )}
 
+                        {/* Show tool call progress */}
+                        {toolParts.length > 0 && (
+                          <div className="flex flex-col gap-1.5 mb-2">
+                            {toolParts.map((part) => {
+                              const toolInfo = TOOL_LABELS[part.type];
+                              const isComplete =
+                                "state" in part && part.state === "output-available";
+                              const isError = "state" in part && part.state === "output-error";
+                              const ToolIcon = toolInfo?.icon ?? Terminal;
+                              const label =
+                                toolInfo?.label ?? part.type.replace("tool-", "") + "...";
+
+                              return (
+                                <div
+                                  key={"toolCallId" in part ? part.toolCallId : part.type}
+                                  className="flex items-center gap-2 rounded-md bg-zinc-800/50 px-3 py-1.5"
+                                >
+                                  {isComplete ? (
+                                    <ToolIcon className="h-3.5 w-3.5 text-green-400" />
+                                  ) : isError ? (
+                                    <ToolIcon className="h-3.5 w-3.5 text-red-400" />
+                                  ) : (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                                  )}
+                                  <span
+                                    className={cn(
+                                      "text-xs",
+                                      isComplete
+                                        ? "text-green-400"
+                                        : isError
+                                          ? "text-red-400"
+                                          : "text-zinc-400"
+                                    )}
+                                  >
+                                    {isComplete
+                                      ? label.replace("...", " — done")
+                                      : isError
+                                        ? label.replace("...", " — failed")
+                                        : label}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         <MessageContent
                           className={
                             message.role === "user" ? "bg-white text-gray-900" : "text-white"
@@ -237,7 +340,7 @@ export default function Home() {
                           {message.role === "assistant" ? (
                             <>
                               <MessageResponse>{messageText}</MessageResponse>
-                              {isStreaming && !messageText && (
+                              {isStreaming && !messageText && toolParts.length === 0 && (
                                 <span className="inline-block h-4 w-1 animate-pulse bg-chat-foreground/50" />
                               )}
                             </>
@@ -371,6 +474,8 @@ export default function Home() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={handleRefreshPreview}
+                disabled={!previewUrl}
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -378,6 +483,8 @@ export default function Home() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={handleOpenExternal}
+                disabled={!previewUrl}
               >
                 <ExternalLink className="h-4 w-4" />
               </Button>
@@ -413,28 +520,38 @@ export default function Home() {
                   <div className="h-3 w-3 rounded-full bg-green-400" />
                 </div>
                 <div className="ml-4 flex-1">
-                  <div className="mx-auto max-w-md rounded-md bg-white dark:bg-gray-800 px-3 py-1 text-center text-xs text-muted-foreground">
-                    localhost:3000
+                  <div className="mx-auto max-w-md truncate rounded-md bg-white dark:bg-gray-800 px-3 py-1 text-center text-xs text-muted-foreground">
+                    {previewUrl ?? "localhost:3000"}
                   </div>
                 </div>
               </div>
 
               {/* Actual preview content */}
-              <div className="flex flex-1 items-center justify-center bg-white dark:bg-gray-800">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600">
-                    <Sparkles className="h-8 w-8 text-white" />
+              {previewUrl ? (
+                <iframe
+                  ref={iframeRef}
+                  src={previewUrl}
+                  className="flex-1 w-full bg-white dark:bg-gray-800"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  title="App preview"
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center bg-white dark:bg-gray-800">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600">
+                      <Sparkles className="h-8 w-8 text-white" />
+                    </div>
+                    <h2 className="mb-2 text-lg font-semibold text-foreground">
+                      {activeProject?.name ?? "Your app preview"}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {activeProject
+                        ? "Start a conversation to generate and iterate on this application"
+                        : "Create a project and start a conversation to generate your application"}
+                    </p>
                   </div>
-                  <h2 className="mb-2 text-lg font-semibold text-foreground">
-                    {activeProject?.name ?? "Your app preview"}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {activeProject
-                      ? "Start a conversation to generate and iterate on this application"
-                      : "Create a project and start a conversation to generate your application"}
-                  </p>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

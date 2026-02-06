@@ -78,12 +78,26 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:4000
       - NEXT_PUBLIC_WS_URL=ws://localhost:4000
+      - SANDBOX_SERVICE_URL=http://sandbox:8000
     depends_on:
       - api
+      - sandbox
     volumes:
       - ../apps/web/src:/app/apps/web/src
       - ../apps/web/public:/app/apps/web/public
     command: pnpm --filter @ai-app-builder/web dev
+
+  sandbox:
+    build:
+      context: ../services/sandbox
+      dockerfile: Dockerfile
+    container_name: ai-app-builder-sandbox
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MODAL_TOKEN_ID=${MODAL_TOKEN_ID:-}
+      - MODAL_TOKEN_SECRET=${MODAL_TOKEN_SECRET:-}
 
 volumes:
   postgres_data:
