@@ -7,6 +7,7 @@ An AI-powered app builder with a chat interface for generating and deploying app
 - **Frontend**: Next.js 15 (App Router) + Vercel AI SDK v5 + shadcn/ui + Tailwind CSS
 - **Backend**: Express.js + Socket.io
 - **Database**: PostgreSQL + Prisma ORM
+- **Object Storage**: S3-compatible storage via MinIO (local Docker)
 - **Auth**: better-auth
 - **Sandboxing**: Modal (planned)
 - **Monorepo**: pnpm workspaces + Turborepo
@@ -47,7 +48,7 @@ ai-with-ai/
 This will:
 
 - Install dependencies
-- Start PostgreSQL, API, and Web containers
+- Start PostgreSQL, MinIO, API, and Web containers
 - Set up the database
 
 ### Option 2: Manual Setup
@@ -65,10 +66,10 @@ cp .env.example .env
 # Edit .env with your values
 ```
 
-3. Start PostgreSQL (using Docker):
+3. Start local infrastructure (PostgreSQL + MinIO):
 
 ```bash
-cd docker && docker compose up postgres -d
+cd docker && docker compose up postgres minio minio-init -d
 ```
 
 4. Run database migrations:
@@ -85,18 +86,21 @@ pnpm dev
 
 ## Services
 
-| Service  | URL                          |
-| -------- | ---------------------------- |
-| Web      | http://localhost:3000        |
-| API      | http://localhost:4000        |
-| Health   | http://localhost:4000/health |
-| Database | postgresql://localhost:5432  |
+| Service       | URL                          |
+| ------------- | ---------------------------- |
+| Web           | http://localhost:3000        |
+| API           | http://localhost:4000        |
+| Health        | http://localhost:4000/health |
+| Database      | postgresql://localhost:5432  |
+| MinIO API     | http://localhost:9000        |
+| MinIO Console | http://localhost:9001        |
 
 ## Scripts
 
 | Command            | Description                    |
 | ------------------ | ------------------------------ |
 | `pnpm dev`         | Start all services in dev mode |
+| `pnpm db:start`    | Start PostgreSQL + MinIO       |
 | `pnpm build`       | Build all packages             |
 | `pnpm lint`        | Lint all packages              |
 | `pnpm db:push`     | Push schema to database        |

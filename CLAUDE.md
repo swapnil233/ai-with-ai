@@ -16,8 +16,9 @@ This is an **AI-powered no-code application builder**. Users can create applicat
 **Key integrations:**
 
 - **Modal** - Sandbox environments for running user-created applications
-- **Anthropic API** - LLM for understanding user intent and generating code
+- **OpenAI/Anthropic API** - LLM provider(s) for understanding user intent and generating code
 - **better-auth** - User authentication and authorization
+- **MinIO (S3-compatible)** - Local object storage for generated assets/artifacts
 
 ## Build & Development Commands
 
@@ -46,6 +47,7 @@ pnpm --filter @ai-app-builder/web test src/lib/utils.test.ts
 cd apps/web && npx shadcn@latest add [component-name]
 
 # Database (requires DATABASE_URL in .env)
+pnpm db:start                                # Start PostgreSQL + MinIO
 pnpm db:generate                             # Generate Prisma client
 pnpm db:push                                 # Push schema to database
 pnpm db:migrate                              # Run migrations
@@ -67,7 +69,8 @@ pnpm --filter @ai-app-builder/api db:studio  # Open Prisma Studio
 
 - **Frontend**: Next.js App Router, React 19, Tailwind CSS v4, shadcn/ui components, Vercel AI SDK
 - **Backend**: Express.js 5, Socket.io for real-time, Prisma ORM, better-auth for authentication, Zod validation
-- **AI/Sandbox**: Anthropic Claude API for LLM, Modal for isolated sandbox environments
+- **Storage**: PostgreSQL for relational data, MinIO (S3-compatible) for object storage
+- **AI/Sandbox**: LLM provider via API keys, Modal for isolated sandbox environments
 - **Build**: pnpm workspaces + Turborepo for task orchestration and caching
 
 **Path Aliases:**
@@ -105,6 +108,8 @@ Required in `.env` (copy from `.env.example`):
 
 - `DATABASE_URL` - PostgreSQL connection string
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` - Authentication
-- `ANTHROPIC_API_KEY` - Anthropic API for LLM
+- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - LLM provider key
 - `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` - Modal API for sandbox environments
 - `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` - Frontend API endpoints
+- `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` - S3-compatible object storage config
+- `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` - Local MinIO bootstrap credentials

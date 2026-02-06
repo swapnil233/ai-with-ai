@@ -6,7 +6,7 @@
 - The product aims to build full-stack apps (frontend, backend, database, auth), not just UI snippets.
 - `apps/web` is the control-plane UI where users chat, inspect output, and manage projects.
 - `apps/api` is the control-plane backend for auth, project/chat state, and orchestration.
-- Generated apps are intended to run in isolated sandbox infrastructure (for example Modal) for preview/build execution, while durable state (project metadata, code versions, long-lived data) is kept outside ephemeral runtimes.
+- Generated apps are intended to run in isolated sandbox infrastructure (for example Modal) for preview/build execution, while durable state (project metadata, code versions, long-lived data, uploaded assets) is kept outside ephemeral runtimes.
 - When making changes, optimize for this workflow: **prompt -> generation -> sandbox preview -> persist -> resume later**.
 
 ## Project Structure & Module Organization
@@ -14,6 +14,7 @@
 - `apps/web`: Next.js frontend (App Router). Main code lives in `apps/web/src/app`, `apps/web/src/components`, and `apps/web/src/lib`; static assets are in `apps/web/public`.
 - `apps/api`: Express + Prisma backend. Route and middleware code is in `apps/api/src/routes` and `apps/api/src/middleware`; database schema is in `apps/api/prisma/schema.prisma`.
 - `packages/shared`: Shared TypeScript utilities/types published from `packages/shared/src` to `packages/shared/dist`.
+- Local infra in `docker/docker-compose.yml` includes PostgreSQL and MinIO (S3-compatible object storage).
 - Root tooling: Turborepo (`turbo.json`), Husky hooks (`.husky/`), lint-staged (`lint-staged.config.mjs`), and commitlint (`commitlint.config.mjs`).
 
 ## Build, Test, and Development Commands
@@ -22,7 +23,7 @@
 - `pnpm build` / `pnpm lint` / `pnpm test`: Build, lint, or test all packages.
 - `pnpm --filter @ai-app-builder/web dev`: Run only the web app.
 - `pnpm --filter @ai-app-builder/api dev`: Run only the API.
-- `pnpm db:start`: Start local Postgres via Docker Compose.
+- `pnpm db:start`: Start local Postgres + MinIO via Docker Compose.
 - `pnpm db:push` / `pnpm db:migrate` / `pnpm db:generate`: Prisma schema sync, migrations, and client generation.
 - `pnpm format`: Format `ts/tsx/js/jsx/json/md` files with Prettier.
 
@@ -49,4 +50,4 @@
 ## Security & Configuration Tips
 
 - Copy `.env.example` to `.env` and keep secrets out of git.
-- Required local values include `DATABASE_URL`, `BETTER_AUTH_SECRET`, and an AI provider key (for example `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`).
+- Required local values include `DATABASE_URL`, `BETTER_AUTH_SECRET`, an AI provider key (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and S3 settings (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`).

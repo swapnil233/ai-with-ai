@@ -10,7 +10,7 @@
     "test:watch": "turbo test:watch",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
-    "db:start": "docker compose -f docker/docker-compose.yml up postgres -d",
+    "db:start": "docker compose -f docker/docker-compose.yml up postgres minio minio-init -d",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",

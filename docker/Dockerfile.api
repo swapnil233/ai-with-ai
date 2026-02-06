@@ -12,6 +12,8 @@ COPY turbo.json ./
 # Copy package.json files for all packages
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
+# Prisma postinstall runs during `pnpm install`, so schema must exist at install time
+COPY apps/api/prisma ./apps/api/prisma
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile || pnpm install
