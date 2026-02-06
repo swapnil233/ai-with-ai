@@ -3,6 +3,7 @@ import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import { healthRouter } from "./routes/health.js";
+import { projectsRouter } from "./routes/projects.js";
 import { userRouter } from "./routes/user.js";
 
 const app: Express = express();
@@ -24,5 +25,6 @@ app.use(express.json());
 // Routes
 app.use("/health", healthRouter);
 app.use("/api/user", userRouter);
+app.use("/api/projects", projectsRouter);
 
 export { app };

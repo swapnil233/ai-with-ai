@@ -5,9 +5,22 @@ import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSignOutMutation } from "@/lib/auth-queries";
+import {
+  useCreateProjectMutation,
+  useProjectQuery,
+  useProjectsQuery,
+} from "@/lib/projects-queries";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Conversation,
   ConversationContent,
@@ -42,11 +55,29 @@ export default function Home() {
   const { session, isPending } = useAuth();
   const router = useRouter();
   const signOutMutation = useSignOutMutation();
+  const createProjectMutation = useCreateProjectMutation();
   const [input, setInput] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
 
   const { messages, sendMessage, status, stop, error } = useChat();
+  const {
+    data: projects = [],
+    isPending: isProjectsPending,
+    error: projectsError,
+  } = useProjectsQuery({
+    enabled: Boolean(session),
+  });
+  const selectedProjectIdFromList =
+    selectedProjectId && projects.some((project) => project.id === selectedProjectId)
+      ? selectedProjectId
+      : (projects[0]?.id ?? null);
+  const { data: selectedProject } = useProjectQuery(selectedProjectIdFromList, {
+    enabled: Boolean(session),
+  });
   const isMobilePreview = previewDevice === "mobile";
+  const activeProject =
+    selectedProject ?? projects.find((project) => project.id === selectedProjectIdFromList) ?? null;
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -70,6 +101,23 @@ export default function Home() {
     await sendMessage({ text });
   };
 
+  const handleCreateProject = async () => {
+    const name = window.prompt("Enter a project name");
+
+    if (!name || name.trim().length === 0) {
+      return;
+    }
+
+    try {
+      const createdProject = await createProjectMutation.mutateAsync({
+        name: name.trim(),
+      });
+      setSelectedProjectId(createdProject.id);
+    } catch {
+      // Keep the current selection if project creation fails.
+    }
+  };
+
   // Helper to extract text content from message parts
   const getTextParts = (message: (typeof messages)[number]) => {
     return message.parts.filter(
@@ -91,13 +139,49 @@ export default function Home() {
         <div className="flex w-[30%] min-w-[320px] max-w-[480px] flex-col bg-chat-bg">
           {/* Chat Header */}
           <header className="flex h-14 items-center justify-between border-b border-chat-border px-4">
-            <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-chat-foreground transition-colors hover:bg-chat-input-bg">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-purple-600">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="text-sm font-medium">My Project</span>
-              <ChevronDown className="h-4 w-4 text-chat-muted" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-chat-foreground transition-colors hover:bg-chat-input-bg">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-purple-600">
+                    <Sparkles className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <span className="max-w-[180px] truncate text-sm font-medium">
+                    {activeProject?.name ?? (isProjectsPending ? "Loading..." : "My Project")}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-chat-muted" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>Projects</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isProjectsPending && (
+                  <DropdownMenuItem disabled>Loading projects...</DropdownMenuItem>
+                )}
+                {!isProjectsPending && projects.length === 0 && (
+                  <DropdownMenuItem disabled>No projects yet</DropdownMenuItem>
+                )}
+                {!isProjectsPending &&
+                  projects.map((project) => (
+                    <DropdownMenuItem
+                      key={project.id}
+                      onSelect={() => setSelectedProjectId(project.id)}
+                      className={cn(selectedProjectIdFromList === project.id && "bg-accent")}
+                    >
+                      {project.name}
+                    </DropdownMenuItem>
+                  ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={createProjectMutation.isPending}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleCreateProject();
+                  }}
+                >
+                  {createProjectMutation.isPending ? "Creating project..." : "New project"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -207,6 +291,14 @@ export default function Home() {
             </PromptInput>
             <div className="mt-3 flex flex-col items-center gap-1">
               {error && <span className="text-xs text-red-500">Error: {error.message}</span>}
+              {projectsError && (
+                <span className="text-xs text-red-500">Projects: {projectsError.message}</span>
+              )}
+              {createProjectMutation.isError && (
+                <span className="text-xs text-red-500">
+                  Create project: {createProjectMutation.error.message}
+                </span>
+              )}
               {status === "submitted" && (
                 <span className="text-xs text-chat-muted">Sending message...</span>
               )}
@@ -333,9 +425,13 @@ export default function Home() {
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600">
                     <Sparkles className="h-8 w-8 text-white" />
                   </div>
-                  <h2 className="mb-2 text-lg font-semibold text-foreground">Your app preview</h2>
+                  <h2 className="mb-2 text-lg font-semibold text-foreground">
+                    {activeProject?.name ?? "Your app preview"}
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Start a conversation to generate your application
+                    {activeProject
+                      ? "Start a conversation to generate and iterate on this application"
+                      : "Create a project and start a conversation to generate your application"}
                   </p>
                 </div>
               </div>
