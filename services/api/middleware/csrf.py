@@ -70,6 +70,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/sandbox/"):
             return await call_next(request)
 
+        # Chat message saving is server-to-server (Next.js chat route → FastAPI)
+        if "/chat/messages" in request.url.path:
+            return await call_next(request)
+
         # Origin check
         origin = _get_origin(request)
         if not _is_trusted_origin(origin):

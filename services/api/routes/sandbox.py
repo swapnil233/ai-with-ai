@@ -1,8 +1,10 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from dependencies.database import get_db
 from services.sandbox_manager import SandboxManager
 
 logger = logging.getLogger(__name__)
@@ -42,10 +44,10 @@ class SandboxIdRequest(BaseModel):
 
 
 @router.post("/create")
-async def create_sandbox(req: CreateRequest):
+async def create_sandbox(req: CreateRequest, db: AsyncSession = Depends(get_db)):
     logger.info("[sandbox] Creating sandbox %s", req.sandbox_id)
     try:
-        result = await manager.create(req.sandbox_id)
+        result = await manager.create(req.sandbox_id, db=db)
         logger.info("[sandbox] Sandbox %s created", req.sandbox_id)
         return result
     except Exception as exc:
@@ -54,11 +56,11 @@ async def create_sandbox(req: CreateRequest):
 
 
 @router.post("/write-files")
-async def write_files(req: WriteFilesRequest):
+async def write_files(req: WriteFilesRequest, db: AsyncSession = Depends(get_db)):
     paths = list(req.files.keys())
     logger.info("[sandbox] Writing %d file(s) to %s: %s", len(paths), req.sandbox_id, paths)
     try:
-        result = await manager.write_files(req.sandbox_id, req.files)
+        result = await manager.write_files(req.sandbox_id, req.files, db=db)
         logger.info("[sandbox] Wrote %d file(s) to %s", len(paths), req.sandbox_id)
         return result
     except KeyError as exc:
@@ -70,10 +72,10 @@ async def write_files(req: WriteFilesRequest):
 
 
 @router.post("/list-files")
-async def list_files(req: ListFilesRequest):
+async def list_files(req: ListFilesRequest, db: AsyncSession = Depends(get_db)):
     logger.info("[sandbox] Listing files in %s (path=%s)", req.sandbox_id, req.path)
     try:
-        result = await manager.list_files(req.sandbox_id, req.path)
+        result = await manager.list_files(req.sandbox_id, req.path, db=db)
         logger.info("[sandbox] Listed %d file(s) in %s", len(result.get("files", [])), req.sandbox_id)
         return result
     except KeyError as exc:
@@ -85,10 +87,10 @@ async def list_files(req: ListFilesRequest):
 
 
 @router.post("/read-file")
-async def read_file(req: ReadFileRequest):
+async def read_file(req: ReadFileRequest, db: AsyncSession = Depends(get_db)):
     logger.info("[sandbox] Reading file %s from %s", req.file_path, req.sandbox_id)
     try:
-        result = await manager.read_file(req.sandbox_id, req.file_path)
+        result = await manager.read_file(req.sandbox_id, req.file_path, db=db)
         logger.info("[sandbox] Read file %s from %s", req.file_path, req.sandbox_id)
         return result
     except KeyError as exc:
@@ -100,12 +102,12 @@ async def read_file(req: ReadFileRequest):
 
 
 @router.post("/run-command")
-async def run_command(req: RunCommandRequest):
+async def run_command(req: RunCommandRequest, db: AsyncSession = Depends(get_db)):
     logger.info(
         "[sandbox] Running command on %s (bg=%s): %s", req.sandbox_id, req.background, req.command
     )
     try:
-        result = await manager.run_command(req.sandbox_id, req.command, req.background)
+        result = await manager.run_command(req.sandbox_id, req.command, req.background, db=db)
         if req.background:
             logger.info("[sandbox] Command started in background on %s", req.sandbox_id)
         else:
@@ -121,10 +123,10 @@ async def run_command(req: RunCommandRequest):
 
 
 @router.post("/tunnel-url")
-async def tunnel_url(req: SandboxIdRequest):
+async def tunnel_url(req: SandboxIdRequest, db: AsyncSession = Depends(get_db)):
     logger.info("[sandbox] Getting tunnel URL for %s", req.sandbox_id)
     try:
-        result = await manager.get_tunnel_url(req.sandbox_id)
+        result = await manager.get_tunnel_url(req.sandbox_id, db=db)
         logger.info("[sandbox] Tunnel URL for %s: %s", req.sandbox_id, result.get("previewUrl"))
         return result
     except KeyError as exc:
@@ -136,10 +138,10 @@ async def tunnel_url(req: SandboxIdRequest):
 
 
 @router.post("/terminate")
-async def terminate(req: SandboxIdRequest):
+async def terminate(req: SandboxIdRequest, db: AsyncSession = Depends(get_db)):
     logger.info("[sandbox] Terminating sandbox %s", req.sandbox_id)
     try:
-        result = await manager.terminate(req.sandbox_id)
+        result = await manager.terminate(req.sandbox_id, db=db)
         logger.info("[sandbox] Sandbox %s terminated", req.sandbox_id)
         return result
     except KeyError as exc:

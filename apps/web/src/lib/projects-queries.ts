@@ -2,6 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const API_BASE_URL = "";
 
+export interface ProjectSandbox {
+  id: string;
+  status: string;
+  tunnelUrl: string | null;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -9,6 +15,7 @@ export interface Project {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  sandbox?: ProjectSandbox | null;
 }
 
 interface CreateProjectInput {

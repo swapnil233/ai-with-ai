@@ -10,6 +10,7 @@ import {
   useProjectQuery,
   useProjectsQuery,
 } from "@/lib/projects-queries";
+import { useChatQuery, deserializeMessages } from "@/lib/chat-queries";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -123,7 +124,6 @@ export default function Home() {
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const { messages, sendMessage, status, stop, error } = useChat();
   const {
     data: projects = [],
     isPending: isProjectsPending,
@@ -135,7 +135,14 @@ export default function Home() {
     selectedProjectId && projects.some((project) => project.id === selectedProjectId)
       ? selectedProjectId
       : (projects[0]?.id ?? null);
+
+  const { messages, sendMessage, status, stop, error, setMessages } = useChat({
+    id: selectedProjectIdFromList ?? undefined,
+  });
   const { data: selectedProject } = useProjectQuery(selectedProjectIdFromList, {
+    enabled: Boolean(session),
+  });
+  const { data: chatData } = useChatQuery(selectedProjectIdFromList, {
     enabled: Boolean(session),
   });
   const isMobilePreview = previewDevice === "mobile";
@@ -148,7 +155,20 @@ export default function Home() {
     }
   }, [isPending, session, router]);
 
-  // Derive preview URL (and toolCallId for cache-busting) from the latest getPreviewUrl tool result
+  // Load chat history when switching projects
+  const loadedChatRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      chatData?.messages?.length &&
+      selectedProjectIdFromList &&
+      loadedChatRef.current !== selectedProjectIdFromList
+    ) {
+      loadedChatRef.current = selectedProjectIdFromList;
+      setMessages(deserializeMessages(chatData.messages));
+    }
+  }, [chatData, selectedProjectIdFromList, setMessages]);
+
+  // Derive preview URL from the latest getPreviewUrl tool result or persisted sandbox data
   let previewInfo: { url: string; toolCallId?: string } | null = null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -172,6 +192,14 @@ export default function Home() {
       }
     }
     if (previewInfo) break;
+  }
+  // Fall back to persisted sandbox tunnel URL
+  if (
+    !previewInfo &&
+    activeProject?.sandbox?.tunnelUrl &&
+    activeProject.sandbox.status === "running"
+  ) {
+    previewInfo = { url: activeProject.sandbox.tunnelUrl };
   }
   const previewUrl = previewInfo?.url ?? null;
 
@@ -214,7 +242,7 @@ export default function Home() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
     setInput("");
-    await sendMessage({ text });
+    await sendMessage({ text }, { body: { projectId: selectedProjectIdFromList } });
   };
 
   const handleCreateProject = async () => {

@@ -14,6 +14,7 @@ from middleware.security import (
     RequestIdMiddleware,
     SecurityHeadersMiddleware,
 )
+from routes.chat import router as chat_router
 from routes.health import router as health_router
 from routes.projects import router as projects_router
 from routes.sandbox import router as sandbox_router
@@ -89,6 +90,7 @@ app.include_router(health_router)
 app.include_router(security_router)
 app.include_router(user_router)
 app.include_router(projects_router)
+app.include_router(chat_router)
 app.include_router(sandbox_router)
 
 

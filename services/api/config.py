@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     modal_token_id: str = ""
     modal_token_secret: str = ""
     better_auth_session_cookie: str = "better-auth.session_token"
+    s3_endpoint: str = "http://localhost:9000"
+    s3_region: str = "us-east-1"
+    s3_bucket: str = "ai-app-builder"
+    s3_access_key_id: str = "minioadmin"
+    s3_secret_access_key: str = "minioadmin"
+    s3_force_path_style: bool = True
 
     @property
     def async_database_url(self) -> str:

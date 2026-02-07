@@ -23,12 +23,20 @@ async function callSidecar(endpoint: string, body: Record<string, unknown>): Pro
 /**
  * Create sandbox tools with per-request state tracking.
  *
+ * `projectId` is injected automatically — the LLM never needs to supply it.
+ *
  * During follow-up edits (`isFollowUp: true`), writes to existing files are
  * blocked unless the file has been read first in the current request. This
  * forces the LLM to call listFiles → readFile → writeFile instead of guessing
  * file contents from pruned context.
  */
-export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
+export function createSandboxTools({
+  isFollowUp,
+  projectId,
+}: {
+  isFollowUp: boolean;
+  projectId: string;
+}) {
   // Tracks files discovered via listFiles — these exist in the sandbox
   const knownExistingFiles = new Set<string>();
   // Tracks files read (or attempted) via readFile in this request
@@ -40,15 +48,11 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
     createSandbox: tool({
       description:
         "Create a new Modal sandbox environment with Node.js 20. Call this first before writing files or running commands.",
-      inputSchema: z.object({
-        sandboxId: z
-          .string()
-          .describe("Unique identifier for the sandbox, typically the project ID"),
-      }),
-      execute: async ({ sandboxId }) => {
-        console.log(`[tool] createSandbox sandboxId=${sandboxId}`);
+      inputSchema: z.object({}),
+      execute: async () => {
+        console.log(`[tool] createSandbox projectId=${projectId}`);
         try {
-          const result = await callSidecar("/sandbox/create", { sandbox_id: sandboxId });
+          const result = await callSidecar("/sandbox/create", { sandbox_id: projectId });
           console.log(`[tool] createSandbox done`);
           return result;
         } catch (err) {
@@ -61,13 +65,12 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
     writeFile: tool({
       description: "Write a single file to the sandbox filesystem.",
       inputSchema: z.object({
-        sandboxId: z.string().describe("The sandbox identifier"),
         filePath: z.string().describe("Absolute path within the sandbox (e.g. /app/package.json)"),
         content: z.string().describe("The full file content to write"),
       }),
-      execute: async ({ sandboxId, filePath, content }) => {
+      execute: async ({ filePath, content }) => {
         console.log(
-          `[tool] writeFile sandboxId=${sandboxId} path=${filePath} (${content.length} chars)`
+          `[tool] writeFile projectId=${projectId} path=${filePath} (${content.length} chars)`
         );
         if (
           isFollowUp &&
@@ -82,7 +85,7 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
         }
         try {
           const result = await callSidecar("/sandbox/write-files", {
-            sandbox_id: sandboxId,
+            sandbox_id: projectId,
             files: { [filePath]: content },
           });
           writtenPaths.add(filePath);
@@ -99,14 +102,13 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
       description:
         "List files in the sandbox. Use this to see the project structure before reading or editing files.",
       inputSchema: z.object({
-        sandboxId: z.string().describe("The sandbox identifier"),
         path: z.string().default("/app").describe("Directory path to list (default: /app)"),
       }),
-      execute: async ({ sandboxId, path }) => {
-        console.log(`[tool] listFiles sandboxId=${sandboxId} path=${path}`);
+      execute: async ({ path }) => {
+        console.log(`[tool] listFiles projectId=${projectId} path=${path}`);
         try {
           const result = (await callSidecar("/sandbox/list-files", {
-            sandbox_id: sandboxId,
+            sandbox_id: projectId,
             path,
           })) as { files: string[] };
           for (const f of result.files) knownExistingFiles.add(f);
@@ -123,19 +125,18 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
       description:
         "Read a file from the sandbox. Use this to understand existing code before making edits.",
       inputSchema: z.object({
-        sandboxId: z.string().describe("The sandbox identifier"),
         filePath: z
           .string()
           .describe("Absolute path of the file to read (e.g. /app/src/app/page.tsx)"),
       }),
-      execute: async ({ sandboxId, filePath }) => {
-        console.log(`[tool] readFile sandboxId=${sandboxId} path=${filePath}`);
+      execute: async ({ filePath }) => {
+        console.log(`[tool] readFile projectId=${projectId} path=${filePath}`);
         // Always mark as read — even if the file doesn't exist, the LLM has
         // acknowledged the path and can now write to it freely.
         readPaths.add(filePath);
         try {
           const result = await callSidecar("/sandbox/read-file", {
-            sandbox_id: sandboxId,
+            sandbox_id: projectId,
             file_path: filePath,
           });
           console.log(`[tool] readFile done`);
@@ -151,7 +152,6 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
       description:
         "Execute a shell command in the sandbox. Use background=true for long-running processes like dev servers.",
       inputSchema: z.object({
-        sandboxId: z.string().describe("The sandbox identifier"),
         command: z.string().describe("The shell command to run (e.g. 'npm install')"),
         background: z
           .boolean()
@@ -160,11 +160,11 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
             "If true, start the command in the background and return immediately. Use for dev servers."
           ),
       }),
-      execute: async ({ sandboxId, command, background }) => {
-        console.log(`[tool] runCommand sandboxId=${sandboxId} cmd="${command}" bg=${background}`);
+      execute: async ({ command, background }) => {
+        console.log(`[tool] runCommand projectId=${projectId} cmd="${command}" bg=${background}`);
         try {
           const result = await callSidecar("/sandbox/run-command", {
-            sandbox_id: sandboxId,
+            sandbox_id: projectId,
             command,
             background,
           });
@@ -180,16 +180,14 @@ export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
     getPreviewUrl: tool({
       description:
         "Get the public tunnel URL for the running app on port 3000. May need a few seconds after starting the dev server.",
-      inputSchema: z.object({
-        sandboxId: z.string().describe("The sandbox identifier"),
-      }),
-      execute: async ({ sandboxId }) => {
-        console.log(`[tool] getPreviewUrl sandboxId=${sandboxId}`);
+      inputSchema: z.object({}),
+      execute: async () => {
+        console.log(`[tool] getPreviewUrl projectId=${projectId}`);
         try {
           for (let attempt = 0; attempt < 5; attempt++) {
             console.log(`[tool] getPreviewUrl attempt ${attempt + 1}/5`);
             const result = (await callSidecar("/sandbox/tunnel-url", {
-              sandbox_id: sandboxId,
+              sandbox_id: projectId,
             })) as { previewUrl: string | null; status: string };
 
             if (result.previewUrl) {
