@@ -60,12 +60,15 @@ import {
   FileCode,
   Terminal,
   Globe,
+  FolderSearch,
+  FileSearch,
 } from "lucide-react";
 
 const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "tool-createSandbox": Box,
   "tool-writeFile": FileCode,
-  "tool-writeFiles": FileCode,
+  "tool-listFiles": FolderSearch,
+  "tool-readFile": FileSearch,
   "tool-runCommand": Terminal,
   "tool-getPreviewUrl": Globe,
 };
@@ -79,25 +82,24 @@ function getToolDetail(part: { type: string; input?: unknown; output?: unknown; 
     case "tool-createSandbox":
       return { action: "Create sandbox", items: [] as string[] };
     case "tool-writeFile": {
-      const filePath = input?.filePath as string | undefined;
+      // Use raw input — filePath is reliable even during streaming
+      const rawFilePath = (part.input as Record<string, unknown> | undefined)?.filePath as
+        | string
+        | undefined;
       return {
         action: "Write file",
-        items: filePath ? [filePath.replace(/^\/app\//, "")] : [],
+        items: rawFilePath ? [rawFilePath.replace(/^\/app\//, "")] : [],
       };
     }
-    case "tool-writeFiles": {
-      const files = input?.files;
-      // files must be a plain object (not array) with string keys
-      const isValidRecord = files != null && typeof files === "object" && !Array.isArray(files);
-      const paths = isValidRecord
-        ? Object.keys(files as Record<string, string>).map((p) => p.replace(/^\/app\//, ""))
-        : [];
+    case "tool-listFiles": {
+      const path = input?.path as string | undefined;
+      return { action: "List files", items: path ? [path.replace(/^\/app\/?/, "") || "/app"] : [] };
+    }
+    case "tool-readFile": {
+      const filePath = input?.filePath as string | undefined;
       return {
-        action:
-          paths.length > 0
-            ? `Write ${paths.length} file${paths.length === 1 ? "" : "s"}`
-            : "Writing files",
-        items: paths,
+        action: "Read file",
+        items: filePath ? [filePath.replace(/^\/app\//, "")] : [],
       };
     }
     case "tool-runCommand": {
@@ -389,8 +391,7 @@ export default function Home() {
                             const { action, items } = getToolDetail(
                               part as Parameters<typeof getToolDetail>[0]
                             );
-                            const isFileType =
-                              part.type === "tool-writeFile" || part.type === "tool-writeFiles";
+                            const isFileType = part.type === "tool-writeFile";
                             const toolKey = "toolCallId" in part ? part.toolCallId : `tool-${i}`;
 
                             // File writes: use Task component with expandable file list

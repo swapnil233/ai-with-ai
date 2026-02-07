@@ -27,6 +27,16 @@ class RunCommandRequest(BaseModel):
     background: bool = False
 
 
+class ListFilesRequest(BaseModel):
+    sandbox_id: str
+    path: str = "/app"
+
+
+class ReadFileRequest(BaseModel):
+    sandbox_id: str
+    file_path: str
+
+
 class SandboxIdRequest(BaseModel):
     sandbox_id: str
 
@@ -56,6 +66,36 @@ async def write_files(req: WriteFilesRequest):
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         logger.error("[sandbox] Failed to write files to %s: %s", req.sandbox_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/list-files")
+async def list_files(req: ListFilesRequest):
+    logger.info("[sandbox] Listing files in %s (path=%s)", req.sandbox_id, req.path)
+    try:
+        result = await manager.list_files(req.sandbox_id, req.path)
+        logger.info("[sandbox] Listed %d file(s) in %s", len(result.get("files", [])), req.sandbox_id)
+        return result
+    except KeyError as exc:
+        logger.error("[sandbox] Sandbox not found for list-files: %s", exc)
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.error("[sandbox] Failed to list files in %s: %s", req.sandbox_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/read-file")
+async def read_file(req: ReadFileRequest):
+    logger.info("[sandbox] Reading file %s from %s", req.file_path, req.sandbox_id)
+    try:
+        result = await manager.read_file(req.sandbox_id, req.file_path)
+        logger.info("[sandbox] Read file %s from %s", req.file_path, req.sandbox_id)
+        return result
+    except KeyError as exc:
+        logger.error("[sandbox] Sandbox not found for read-file: %s", exc)
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.error("[sandbox] Failed to read file from %s: %s", req.sandbox_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

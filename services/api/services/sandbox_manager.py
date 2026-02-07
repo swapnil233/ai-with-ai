@@ -103,6 +103,42 @@ class SandboxManager:
             return {"previewUrl": tunnel.url, "status": "ready"}
         return {"previewUrl": None, "status": "not_ready"}
 
+    async def list_files(self, sandbox_id: str, path: str = "/app") -> dict:
+        """List files in the sandbox, excluding node_modules/.next/.git."""
+        sb = await self._get(sandbox_id)
+        proc = await sb.exec.aio(
+            "find",
+            path,
+            "-maxdepth",
+            "4",
+            "-not",
+            "-path",
+            "*/node_modules/*",
+            "-not",
+            "-path",
+            "*/.next/*",
+            "-not",
+            "-path",
+            "*/.git/*",
+            "-type",
+            "f",
+        )
+        stdout = await proc.stdout.read.aio()
+        await proc.wait.aio()
+        files = [line for line in stdout.strip().split("\n") if line]
+        return {"files": files}
+
+    async def read_file(self, sandbox_id: str, file_path: str) -> dict:
+        """Read a single file from the sandbox filesystem."""
+        sb = await self._get(sandbox_id)
+        try:
+            f = await sb.open.aio(file_path, "r")
+            content = await f.read.aio()
+            await f.close.aio()
+            return {"filePath": file_path, "content": content}
+        except Exception as exc:
+            return {"filePath": file_path, "content": None, "error": str(exc)}
+
     async def terminate(self, sandbox_id: str) -> dict:
         """Terminate and clean up a sandbox."""
         # Wait for creation to finish before terminating

@@ -20,134 +20,191 @@ async function callSidecar(endpoint: string, body: Record<string, unknown>): Pro
   return json;
 }
 
-export const sandboxTools = {
-  createSandbox: tool({
-    description:
-      "Create a new Modal sandbox environment with Node.js 20. Call this first before writing files or running commands.",
-    inputSchema: z.object({
-      sandboxId: z.string().describe("Unique identifier for the sandbox, typically the project ID"),
-    }),
-    execute: async ({ sandboxId }) => {
-      console.log(`[tool] createSandbox sandboxId=${sandboxId}`);
-      try {
-        const result = await callSidecar("/sandbox/create", { sandbox_id: sandboxId });
-        console.log(`[tool] createSandbox done`);
-        return result;
-      } catch (err) {
-        console.error(`[tool] createSandbox error:`, err);
-        throw err;
-      }
-    },
-  }),
+/**
+ * Create sandbox tools with per-request state tracking.
+ *
+ * During follow-up edits (`isFollowUp: true`), writes to existing files are
+ * blocked unless the file has been read first in the current request. This
+ * forces the LLM to call listFiles → readFile → writeFile instead of guessing
+ * file contents from pruned context.
+ */
+export function createSandboxTools({ isFollowUp }: { isFollowUp: boolean }) {
+  // Tracks files discovered via listFiles — these exist in the sandbox
+  const knownExistingFiles = new Set<string>();
+  // Tracks files read (or attempted) via readFile in this request
+  const readPaths = new Set<string>();
+  // Tracks files written in this request (so sequential writes don't require re-read)
+  const writtenPaths = new Set<string>();
 
-  writeFile: tool({
-    description: "Write a single file to the sandbox filesystem.",
-    inputSchema: z.object({
-      sandboxId: z.string().describe("The sandbox identifier"),
-      filePath: z.string().describe("Absolute path within the sandbox (e.g. /app/package.json)"),
-      content: z.string().describe("The full file content to write"),
-    }),
-    execute: async ({ sandboxId, filePath, content }) => {
-      console.log(
-        `[tool] writeFile sandboxId=${sandboxId} path=${filePath} (${content.length} chars)`
-      );
-      try {
-        const result = await callSidecar("/sandbox/write-files", {
-          sandbox_id: sandboxId,
-          files: { [filePath]: content },
-        });
-        console.log(`[tool] writeFile done`);
-        return result;
-      } catch (err) {
-        console.error(`[tool] writeFile error:`, err);
-        throw err;
-      }
-    },
-  }),
-
-  writeFiles: tool({
-    description:
-      "Batch write multiple files to the sandbox filesystem. Prefer this over writeFile when creating multiple files.",
-    inputSchema: z.object({
-      sandboxId: z.string().describe("The sandbox identifier"),
-      files: z
-        .record(z.string(), z.string())
-        .describe("Object mapping file paths to contents, e.g. { '/app/package.json': '...' }"),
-    }),
-    execute: async ({ sandboxId, files }) => {
-      const paths = Object.keys(files);
-      console.log(`[tool] writeFiles sandboxId=${sandboxId} files=[${paths.join(", ")}]`);
-      try {
-        const result = await callSidecar("/sandbox/write-files", {
-          sandbox_id: sandboxId,
-          files,
-        });
-        console.log(`[tool] writeFiles done`);
-        return result;
-      } catch (err) {
-        console.error(`[tool] writeFiles error:`, err);
-        throw err;
-      }
-    },
-  }),
-
-  runCommand: tool({
-    description:
-      "Execute a shell command in the sandbox. Use background=true for long-running processes like dev servers.",
-    inputSchema: z.object({
-      sandboxId: z.string().describe("The sandbox identifier"),
-      command: z.string().describe("The shell command to run (e.g. 'npm install')"),
-      background: z
-        .boolean()
-        .default(false)
-        .describe(
-          "If true, start the command in the background and return immediately. Use for dev servers."
-        ),
-    }),
-    execute: async ({ sandboxId, command, background }) => {
-      console.log(`[tool] runCommand sandboxId=${sandboxId} cmd="${command}" bg=${background}`);
-      try {
-        const result = await callSidecar("/sandbox/run-command", {
-          sandbox_id: sandboxId,
-          command,
-          background,
-        });
-        console.log(`[tool] runCommand done`);
-        return result;
-      } catch (err) {
-        console.error(`[tool] runCommand error:`, err);
-        throw err;
-      }
-    },
-  }),
-
-  getPreviewUrl: tool({
-    description:
-      "Get the public tunnel URL for the running app on port 3000. May need a few seconds after starting the dev server.",
-    inputSchema: z.object({
-      sandboxId: z.string().describe("The sandbox identifier"),
-    }),
-    execute: async ({ sandboxId }) => {
-      console.log(`[tool] getPreviewUrl sandboxId=${sandboxId}`);
-      try {
-        for (let attempt = 0; attempt < 5; attempt++) {
-          console.log(`[tool] getPreviewUrl attempt ${attempt + 1}/5`);
-          const result = (await callSidecar("/sandbox/tunnel-url", {
-            sandbox_id: sandboxId,
-          })) as { previewUrl: string | null; status: string };
-
-          if (result.previewUrl) {
-            console.log(`[tool] getPreviewUrl ready: ${result.previewUrl}`);
-            return { previewUrl: result.previewUrl, status: "ready" as const };
-          }
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+  return {
+    createSandbox: tool({
+      description:
+        "Create a new Modal sandbox environment with Node.js 20. Call this first before writing files or running commands.",
+      inputSchema: z.object({
+        sandboxId: z
+          .string()
+          .describe("Unique identifier for the sandbox, typically the project ID"),
+      }),
+      execute: async ({ sandboxId }) => {
+        console.log(`[tool] createSandbox sandboxId=${sandboxId}`);
+        try {
+          const result = await callSidecar("/sandbox/create", { sandbox_id: sandboxId });
+          console.log(`[tool] createSandbox done`);
+          return result;
+        } catch (err) {
+          console.error(`[tool] createSandbox error:`, err);
+          throw err;
         }
-        console.warn(`[tool] getPreviewUrl not ready after 5 attempts`);
-        return { previewUrl: null, status: "not_ready" as const };
-      } catch (err) {
-        console.error(`[tool] getPreviewUrl error:`, err);
-        throw err;
-      }
-    },
-  }),
-};
+      },
+    }),
+
+    writeFile: tool({
+      description: "Write a single file to the sandbox filesystem.",
+      inputSchema: z.object({
+        sandboxId: z.string().describe("The sandbox identifier"),
+        filePath: z.string().describe("Absolute path within the sandbox (e.g. /app/package.json)"),
+        content: z.string().describe("The full file content to write"),
+      }),
+      execute: async ({ sandboxId, filePath, content }) => {
+        console.log(
+          `[tool] writeFile sandboxId=${sandboxId} path=${filePath} (${content.length} chars)`
+        );
+        if (
+          isFollowUp &&
+          knownExistingFiles.has(filePath) &&
+          !readPaths.has(filePath) &&
+          !writtenPaths.has(filePath)
+        ) {
+          console.warn(`[tool] writeFile BLOCKED — file not read: ${filePath}`);
+          return {
+            error: `You must call readFile on "${filePath}" before writing to it. The file exists in the sandbox but its contents are not in your context.`,
+          };
+        }
+        try {
+          const result = await callSidecar("/sandbox/write-files", {
+            sandbox_id: sandboxId,
+            files: { [filePath]: content },
+          });
+          writtenPaths.add(filePath);
+          console.log(`[tool] writeFile done`);
+          return result;
+        } catch (err) {
+          console.error(`[tool] writeFile error:`, err);
+          throw err;
+        }
+      },
+    }),
+
+    listFiles: tool({
+      description:
+        "List files in the sandbox. Use this to see the project structure before reading or editing files.",
+      inputSchema: z.object({
+        sandboxId: z.string().describe("The sandbox identifier"),
+        path: z.string().default("/app").describe("Directory path to list (default: /app)"),
+      }),
+      execute: async ({ sandboxId, path }) => {
+        console.log(`[tool] listFiles sandboxId=${sandboxId} path=${path}`);
+        try {
+          const result = (await callSidecar("/sandbox/list-files", {
+            sandbox_id: sandboxId,
+            path,
+          })) as { files: string[] };
+          for (const f of result.files) knownExistingFiles.add(f);
+          console.log(`[tool] listFiles done (${result.files.length} files)`);
+          return result;
+        } catch (err) {
+          console.error(`[tool] listFiles error:`, err);
+          throw err;
+        }
+      },
+    }),
+
+    readFile: tool({
+      description:
+        "Read a file from the sandbox. Use this to understand existing code before making edits.",
+      inputSchema: z.object({
+        sandboxId: z.string().describe("The sandbox identifier"),
+        filePath: z
+          .string()
+          .describe("Absolute path of the file to read (e.g. /app/src/app/page.tsx)"),
+      }),
+      execute: async ({ sandboxId, filePath }) => {
+        console.log(`[tool] readFile sandboxId=${sandboxId} path=${filePath}`);
+        // Always mark as read — even if the file doesn't exist, the LLM has
+        // acknowledged the path and can now write to it freely.
+        readPaths.add(filePath);
+        try {
+          const result = await callSidecar("/sandbox/read-file", {
+            sandbox_id: sandboxId,
+            file_path: filePath,
+          });
+          console.log(`[tool] readFile done`);
+          return result;
+        } catch (err) {
+          console.error(`[tool] readFile error:`, err);
+          throw err;
+        }
+      },
+    }),
+
+    runCommand: tool({
+      description:
+        "Execute a shell command in the sandbox. Use background=true for long-running processes like dev servers.",
+      inputSchema: z.object({
+        sandboxId: z.string().describe("The sandbox identifier"),
+        command: z.string().describe("The shell command to run (e.g. 'npm install')"),
+        background: z
+          .boolean()
+          .default(false)
+          .describe(
+            "If true, start the command in the background and return immediately. Use for dev servers."
+          ),
+      }),
+      execute: async ({ sandboxId, command, background }) => {
+        console.log(`[tool] runCommand sandboxId=${sandboxId} cmd="${command}" bg=${background}`);
+        try {
+          const result = await callSidecar("/sandbox/run-command", {
+            sandbox_id: sandboxId,
+            command,
+            background,
+          });
+          console.log(`[tool] runCommand done`);
+          return result;
+        } catch (err) {
+          console.error(`[tool] runCommand error:`, err);
+          throw err;
+        }
+      },
+    }),
+
+    getPreviewUrl: tool({
+      description:
+        "Get the public tunnel URL for the running app on port 3000. May need a few seconds after starting the dev server.",
+      inputSchema: z.object({
+        sandboxId: z.string().describe("The sandbox identifier"),
+      }),
+      execute: async ({ sandboxId }) => {
+        console.log(`[tool] getPreviewUrl sandboxId=${sandboxId}`);
+        try {
+          for (let attempt = 0; attempt < 5; attempt++) {
+            console.log(`[tool] getPreviewUrl attempt ${attempt + 1}/5`);
+            const result = (await callSidecar("/sandbox/tunnel-url", {
+              sandbox_id: sandboxId,
+            })) as { previewUrl: string | null; status: string };
+
+            if (result.previewUrl) {
+              console.log(`[tool] getPreviewUrl ready: ${result.previewUrl}`);
+              return { previewUrl: result.previewUrl, status: "ready" as const };
+            }
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+          console.warn(`[tool] getPreviewUrl not ready after 5 attempts`);
+          return { previewUrl: null, status: "not_ready" as const };
+        } catch (err) {
+          console.error(`[tool] getPreviewUrl error:`, err);
+          throw err;
+        }
+      },
+    }),
+  };
+}
