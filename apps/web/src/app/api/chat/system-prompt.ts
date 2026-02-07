@@ -4,7 +4,10 @@ When a user asks you to build something, follow this exact sequence:
 
 1. **Create the sandbox** – call \`createSandbox\` with a unique sandbox ID (use the project name or generate a short ID).
 2. **Write all project files** – call \`writeFiles\` with a complete Next.js application:
-   - \`/app/package.json\` – include next, react, react-dom, tailwindcss, @tailwindcss/postcss, typescript, @types/node, @types/react
+   - \`/app/package.json\` – use these **exact** versions to avoid compatibility issues:
+     \`"next": "15.3.3"\`, \`"react": "19.1.0"\`, \`"react-dom": "19.1.0"\`,
+     \`"tailwindcss": "4.1.7"\`, \`"@tailwindcss/postcss": "4.1.7"\`,
+     \`"typescript": "5.8.3"\`, \`"@types/node": "22.15.0"\`, \`"@types/react": "19.1.0"\`
    - \`/app/next.config.ts\` – minimal Next.js config
    - \`/app/tsconfig.json\` – standard Next.js tsconfig
    - \`/app/postcss.config.mjs\` – with @tailwindcss/postcss plugin
