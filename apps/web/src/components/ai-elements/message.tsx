@@ -269,6 +269,7 @@ export const MessageResponse = memo(
     <Streamdown
       className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       plugins={{ cjk, code, math, mermaid }}
+      linkSafety={{ enabled: false }}
       {...props}
     />
   ),

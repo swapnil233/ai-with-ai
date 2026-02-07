@@ -1,5 +1,7 @@
 """Modal sandbox manager - wraps the Modal SDK for creating and managing sandboxes."""
 
+import posixpath
+
 import modal
 
 # Node.js 20 image with npm for running Next.js apps
@@ -36,6 +38,14 @@ class SandboxManager:
     async def write_files(self, sandbox_id: str, files: dict[str, str]) -> dict:
         """Write multiple files to the sandbox filesystem."""
         sb = self._get(sandbox_id)
+
+        # Collect unique parent directories and create them in one shot
+        dirs = {posixpath.dirname(p) for p in files if posixpath.dirname(p)}
+        if dirs:
+            mkdir_cmd = "mkdir -p " + " ".join(sorted(dirs))
+            proc = await sb.exec.aio("bash", "-c", mkdir_cmd)
+            await proc.wait.aio()
+
         for path, content in files.items():
             f = await sb.open.aio(path, "w")
             await f.write.aio(content)

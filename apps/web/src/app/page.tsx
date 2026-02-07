@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -29,6 +29,13 @@ import {
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
 import {
+  Task,
+  TaskTrigger,
+  TaskContent,
+  TaskItem,
+  TaskItemFile,
+} from "@/components/ai-elements/task";
+import {
   PromptInput,
   PromptInputTextarea,
   PromptInputFooter,
@@ -55,16 +62,54 @@ import {
   Globe,
 } from "lucide-react";
 
-const TOOL_LABELS: Record<
-  string,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  "tool-createSandbox": { label: "Creating sandbox...", icon: Box },
-  "tool-writeFile": { label: "Writing file...", icon: FileCode },
-  "tool-writeFiles": { label: "Writing files...", icon: FileCode },
-  "tool-runCommand": { label: "Running command...", icon: Terminal },
-  "tool-getPreviewUrl": { label: "Getting preview URL...", icon: Globe },
+const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "tool-createSandbox": Box,
+  "tool-writeFile": FileCode,
+  "tool-writeFiles": FileCode,
+  "tool-runCommand": Terminal,
+  "tool-getPreviewUrl": Globe,
 };
+
+function getToolDetail(part: { type: string; input?: unknown; output?: unknown; state?: string }) {
+  // During input-streaming, partial JSON parsing produces unreliable data
+  const inputReady = part.state !== "input-streaming";
+  const input = inputReady ? (part.input as Record<string, unknown> | undefined) : undefined;
+
+  switch (part.type) {
+    case "tool-createSandbox":
+      return { action: "Create sandbox", items: [] as string[] };
+    case "tool-writeFile": {
+      const filePath = input?.filePath as string | undefined;
+      return {
+        action: "Write file",
+        items: filePath ? [filePath.replace(/^\/app\//, "")] : [],
+      };
+    }
+    case "tool-writeFiles": {
+      const files = input?.files;
+      // files must be a plain object (not array) with string keys
+      const isValidRecord = files != null && typeof files === "object" && !Array.isArray(files);
+      const paths = isValidRecord
+        ? Object.keys(files as Record<string, string>).map((p) => p.replace(/^\/app\//, ""))
+        : [];
+      return {
+        action:
+          paths.length > 0
+            ? `Write ${paths.length} file${paths.length === 1 ? "" : "s"}`
+            : "Writing files",
+        items: paths,
+      };
+    }
+    case "tool-runCommand": {
+      const cmd = input?.command as string | undefined;
+      return { action: "Run command", items: cmd ? [cmd] : [] };
+    }
+    case "tool-getPreviewUrl":
+      return { action: "Get preview URL", items: [] as string[] };
+    default:
+      return { action: part.type.replace("tool-", ""), items: [] as string[] };
+  }
+}
 
 export default function Home() {
   const { session, isPending } = useAuth();
@@ -101,40 +146,58 @@ export default function Home() {
     }
   }, [isPending, session, router]);
 
-  // Derive preview URL from the latest getPreviewUrl tool result
-  const previewUrl = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.role !== "assistant") continue;
-      for (const part of msg.parts) {
-        if (
-          part.type === "tool-getPreviewUrl" &&
-          "state" in part &&
-          part.state === "output-available" &&
-          "output" in part &&
-          part.output &&
-          typeof part.output === "object" &&
-          "previewUrl" in part.output &&
-          typeof part.output.previewUrl === "string"
-        ) {
-          return part.output.previewUrl;
-        }
+  // Derive preview URL (and toolCallId for cache-busting) from the latest getPreviewUrl tool result
+  let previewInfo: { url: string; toolCallId?: string } | null = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== "assistant") continue;
+    for (const part of msg.parts) {
+      if (
+        part.type === "tool-getPreviewUrl" &&
+        "state" in part &&
+        part.state === "output-available" &&
+        "output" in part &&
+        part.output &&
+        typeof part.output === "object" &&
+        "previewUrl" in part.output &&
+        typeof part.output.previewUrl === "string"
+      ) {
+        previewInfo = {
+          url: part.output.previewUrl,
+          toolCallId: "toolCallId" in part ? (part.toolCallId as string) : undefined,
+        };
+        break;
       }
     }
-    return null;
-  }, [messages]);
+    if (previewInfo) break;
+  }
+  const previewUrl = previewInfo?.url ?? null;
 
-  const handleRefreshPreview = useCallback(() => {
+  // Auto-refresh iframe when the agent finishes streaming (files may have changed)
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    if (
+      prevStatusRef.current === "streaming" &&
+      status === "ready" &&
+      iframeRef.current &&
+      previewUrl
+    ) {
+      iframeRef.current.src = previewUrl;
+    }
+    prevStatusRef.current = status;
+  }, [status, previewUrl]);
+
+  const handleRefreshPreview = () => {
     if (iframeRef.current && previewUrl) {
       iframeRef.current.src = previewUrl;
     }
-  }, [previewUrl]);
+  };
 
-  const handleOpenExternal = useCallback(() => {
+  const handleOpenExternal = () => {
     if (previewUrl) {
       window.open(previewUrl, "_blank");
     }
-  }, [previewUrl]);
+  };
 
   const handleSignOut = async () => {
     try {
@@ -169,42 +232,49 @@ export default function Home() {
     }
   };
 
-  // Helper to extract text content from message parts
-  const getTextParts = (message: (typeof messages)[number]) => {
-    return message.parts.filter(
-      (part): part is { type: "text"; text: string } => part.type === "text"
-    );
-  };
+  // Group consecutive reasoning parts together, keep everything else in order
+  const getGroupedParts = (message: (typeof messages)[number]) => {
+    const groups: Array<
+      | { kind: "reasoning"; texts: string[] }
+      | { kind: "text"; text: string }
+      | { kind: "tool"; part: (typeof message.parts)[number] }
+    > = [];
 
-  // Helper to extract reasoning parts from message parts
-  const getReasoningParts = (message: (typeof messages)[number]) => {
-    return message.parts.filter(
-      (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
-    );
-  };
+    for (const part of message.parts) {
+      if (part.type === "reasoning") {
+        const last = groups[groups.length - 1];
+        if (last && last.kind === "reasoning") {
+          last.texts.push(part.text);
+        } else {
+          groups.push({ kind: "reasoning", texts: [part.text] });
+        }
+      } else if (part.type === "text") {
+        groups.push({ kind: "text", text: part.text });
+      } else if (part.type.startsWith("tool-")) {
+        groups.push({ kind: "tool", part });
+      }
+    }
 
-  // Helper to extract tool invocation parts from message parts
-  const getToolParts = (message: (typeof messages)[number]) => {
-    return message.parts.filter((part) => part.type.startsWith("tool-"));
+    return groups;
   };
 
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-background">
         {/* Left Panel - Chat Interface (30% width) */}
-        <div className="flex w-[30%] min-w-[320px] max-w-[480px] flex-col bg-chat-bg">
+        <div className="flex w-[30%] min-w-[320px] max-w-[480px] flex-col border-r border-border bg-background">
           {/* Chat Header */}
-          <header className="flex h-14 items-center justify-between border-b border-chat-border px-4">
+          <header className="flex h-14 items-center justify-between border-b border-border px-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-chat-foreground transition-colors hover:bg-chat-input-bg">
+                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-foreground transition-colors hover:bg-muted">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-purple-600">
                     <Sparkles className="h-3.5 w-3.5 text-white" />
                   </div>
                   <span className="max-w-[180px] truncate text-sm font-medium">
                     {activeProject?.name ?? (isProjectsPending ? "Loading..." : "My Project")}
                   </span>
-                  <ChevronDown className="h-4 w-4 text-chat-muted" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
@@ -242,7 +312,7 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-chat-muted hover:bg-chat-input-bg hover:text-chat-foreground"
+                className="h-8 text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={handleSignOut}
                 disabled={signOutMutation.isPending}
               >
@@ -252,11 +322,11 @@ export default function Home() {
           </header>
 
           {/* Chat Messages Area */}
-          <Conversation className="flex-1 bg-chat-bg">
+          <Conversation className="flex-1">
             <ConversationContent className="px-4 py-4 gap-4">
               {messages.length === 0 ? (
                 <Message from="assistant">
-                  <MessageContent className="text-white">
+                  <MessageContent>
                     <p className="text-sm leading-relaxed">
                       Welcome! I&apos;m your AI assistant. Describe the app you want to build and
                       I&apos;ll help you create it.
@@ -269,85 +339,148 @@ export default function Home() {
                     const isLastMessage = index === messages.length - 1;
                     const isStreaming =
                       isLastMessage && status === "streaming" && message.role === "assistant";
-                    const textParts = getTextParts(message);
-                    const reasoningParts = getReasoningParts(message);
-                    const toolParts = message.role === "assistant" ? getToolParts(message) : [];
-                    const messageText = textParts.map((part) => part.text).join("");
+
+                    if (message.role === "user") {
+                      const messageText = message.parts
+                        .filter(
+                          (part): part is { type: "text"; text: string } => part.type === "text"
+                        )
+                        .map((part) => part.text)
+                        .join("");
+                      return (
+                        <Message key={message.id} from="user">
+                          <MessageContent className="bg-muted">
+                            <p className="text-sm">{messageText}</p>
+                          </MessageContent>
+                        </Message>
+                      );
+                    }
+
+                    // Assistant: render parts sequentially to preserve order
+                    const groups = getGroupedParts(message);
+                    const hasContent = groups.some(
+                      (g) =>
+                        (g.kind === "text" && g.text.trim()) ||
+                        g.kind === "tool" ||
+                        g.kind === "reasoning"
+                    );
 
                     return (
-                      <Message key={message.id} from={message.role}>
-                        {/* Show reasoning/thinking if present */}
-                        {message.role === "assistant" && reasoningParts.length > 0 && (
-                          <Reasoning isStreaming={isStreaming} defaultOpen={isStreaming}>
-                            <ReasoningTrigger />
-                            <ReasoningContent>
-                              {reasoningParts.map((part) => part.text).join("\n\n")}
-                            </ReasoningContent>
-                          </Reasoning>
-                        )}
-
-                        {/* Show tool call progress */}
-                        {toolParts.length > 0 && (
-                          <div className="flex flex-col gap-1.5 mb-2">
-                            {toolParts.map((part) => {
-                              const toolInfo = TOOL_LABELS[part.type];
-                              const isComplete =
-                                "state" in part && part.state === "output-available";
-                              const isError = "state" in part && part.state === "output-error";
-                              const ToolIcon = toolInfo?.icon ?? Terminal;
-                              const label =
-                                toolInfo?.label ?? part.type.replace("tool-", "") + "...";
-
-                              return (
-                                <div
-                                  key={"toolCallId" in part ? part.toolCallId : part.type}
-                                  className="flex items-center gap-2 rounded-md bg-zinc-800/50 px-3 py-1.5"
-                                >
-                                  {isComplete ? (
-                                    <ToolIcon className="h-3.5 w-3.5 text-green-400" />
-                                  ) : isError ? (
-                                    <ToolIcon className="h-3.5 w-3.5 text-red-400" />
-                                  ) : (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
-                                  )}
-                                  <span
-                                    className={cn(
-                                      "text-xs",
-                                      isComplete
-                                        ? "text-green-400"
-                                        : isError
-                                          ? "text-red-400"
-                                          : "text-zinc-400"
-                                    )}
-                                  >
-                                    {isComplete
-                                      ? label.replace("...", " — done")
-                                      : isError
-                                        ? label.replace("...", " — failed")
-                                        : label}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        <MessageContent
-                          className={
-                            message.role === "user" ? "bg-white text-gray-900" : "text-white"
+                      <Message key={message.id} from="assistant">
+                        {groups.map((group, i) => {
+                          if (group.kind === "reasoning") {
+                            return (
+                              <Reasoning
+                                key={`reasoning-${i}`}
+                                isStreaming={isStreaming}
+                                defaultOpen={isStreaming}
+                              >
+                                <ReasoningTrigger />
+                                <ReasoningContent>{group.texts.join("\n\n")}</ReasoningContent>
+                              </Reasoning>
+                            );
                           }
-                        >
-                          {message.role === "assistant" ? (
-                            <>
-                              <MessageResponse>{messageText}</MessageResponse>
-                              {isStreaming && !messageText && toolParts.length === 0 && (
-                                <span className="inline-block h-4 w-1 animate-pulse bg-chat-foreground/50" />
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-sm">{messageText}</p>
-                          )}
-                        </MessageContent>
+
+                          if (group.kind === "tool") {
+                            const part = group.part;
+                            const isComplete = "state" in part && part.state === "output-available";
+                            const isError = "state" in part && part.state === "output-error";
+                            const ToolIcon = TOOL_ICONS[part.type] ?? Terminal;
+                            const { action, items } = getToolDetail(
+                              part as Parameters<typeof getToolDetail>[0]
+                            );
+                            const isFileType =
+                              part.type === "tool-writeFile" || part.type === "tool-writeFiles";
+                            const toolKey = "toolCallId" in part ? part.toolCallId : `tool-${i}`;
+
+                            // File writes: use Task component with expandable file list
+                            if (isFileType && items.length > 0) {
+                              return (
+                                <Task key={toolKey} defaultOpen>
+                                  <TaskTrigger title={action}>
+                                    <div className="flex w-full cursor-pointer items-center gap-2 text-sm transition-colors hover:text-foreground">
+                                      {isComplete ? (
+                                        <ToolIcon className="size-4 shrink-0 text-emerald-600" />
+                                      ) : isError ? (
+                                        <ToolIcon className="size-4 shrink-0 text-red-500" />
+                                      ) : (
+                                        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                                      )}
+                                      <span
+                                        className={cn(
+                                          "text-sm",
+                                          isComplete
+                                            ? "text-emerald-600"
+                                            : isError
+                                              ? "text-red-500"
+                                              : "text-muted-foreground"
+                                        )}
+                                      >
+                                        {action}
+                                      </span>
+                                      <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                    </div>
+                                  </TaskTrigger>
+                                  <TaskContent>
+                                    {items.map((item, j) => (
+                                      <TaskItem key={j}>
+                                        <TaskItemFile>
+                                          <FileCode className="size-3.5 text-muted-foreground" />
+                                          <span>{item}</span>
+                                        </TaskItemFile>
+                                      </TaskItem>
+                                    ))}
+                                  </TaskContent>
+                                </Task>
+                              );
+                            }
+
+                            // All other tools: simple inline row
+                            return (
+                              <div key={toolKey} className="flex items-center gap-2 py-0.5 text-sm">
+                                {isComplete ? (
+                                  <ToolIcon className="size-4 shrink-0 text-emerald-600" />
+                                ) : isError ? (
+                                  <ToolIcon className="size-4 shrink-0 text-red-500" />
+                                ) : (
+                                  <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                                )}
+                                <span
+                                  className={cn(
+                                    "text-sm",
+                                    isComplete
+                                      ? "text-emerald-600"
+                                      : isError
+                                        ? "text-red-500"
+                                        : "text-muted-foreground"
+                                  )}
+                                >
+                                  {action}
+                                </span>
+                                {items.length > 0 && (
+                                  <code className="truncate text-xs text-muted-foreground font-mono">
+                                    {items[0]}
+                                  </code>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          if (group.kind === "text" && group.text.trim()) {
+                            return (
+                              <MessageContent key={`text-${i}`} className="text-foreground">
+                                <MessageResponse>{group.text}</MessageResponse>
+                              </MessageContent>
+                            );
+                          }
+
+                          return null;
+                        })}
+                        {isStreaming && !hasContent && (
+                          <MessageContent className="text-foreground">
+                            <span className="inline-block h-4 w-1 animate-pulse bg-foreground/50" />
+                          </MessageContent>
+                        )}
                       </Message>
                     );
                   })}
@@ -355,10 +488,10 @@ export default function Home() {
                   {/* Show typing indicator when waiting for AI response */}
                   {status === "submitted" && (
                     <Message from="assistant">
-                      <MessageContent className="text-white">
+                      <MessageContent className="text-foreground">
                         <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-                          <span className="text-sm text-zinc-400">Thinking...</span>
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Thinking...</span>
                         </div>
                       </MessageContent>
                     </Message>
@@ -370,16 +503,16 @@ export default function Home() {
           </Conversation>
 
           {/* Chat Input Area */}
-          <div className="border-t border-chat-border p-4">
+          <div className="border-t border-border p-4">
             <PromptInput
               onSubmit={(message) => {
                 handleSendMessage(message.text);
               }}
-              className="rounded-xl bg-chat-input-bg"
+              className="rounded-xl bg-muted"
             >
               <PromptInputTextarea
                 placeholder="Describe the app you want to build..."
-                className="min-h-[44px] bg-transparent text-chat-foreground placeholder:text-chat-muted"
+                className="min-h-[44px] bg-transparent text-foreground placeholder:text-muted-foreground"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
               />
@@ -403,12 +536,12 @@ export default function Home() {
                 </span>
               )}
               {status === "submitted" && (
-                <span className="text-xs text-chat-muted">Sending message...</span>
+                <span className="text-xs text-muted-foreground">Sending message...</span>
               )}
               {status === "streaming" && (
-                <span className="text-xs text-chat-muted">AI is responding...</span>
+                <span className="text-xs text-muted-foreground">AI is responding...</span>
               )}
-              <span className="text-xs text-chat-muted" suppressHydrationWarning>
+              <span className="text-xs text-muted-foreground" suppressHydrationWarning>
                 {isPending ? "Checking session..." : (session?.user?.email ?? "")}
               </span>
             </div>
@@ -529,6 +662,7 @@ export default function Home() {
               {/* Actual preview content */}
               {previewUrl ? (
                 <iframe
+                  key={previewInfo?.toolCallId}
                   ref={iframeRef}
                   src={previewUrl}
                   className="flex-1 w-full bg-white dark:bg-gray-800"
