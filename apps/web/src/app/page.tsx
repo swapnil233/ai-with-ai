@@ -511,6 +511,7 @@ export default function Home() {
               className="rounded-xl bg-muted"
             >
               <PromptInputTextarea
+                autoFocus
                 placeholder="Describe the app you want to build..."
                 className="min-h-[44px] bg-transparent text-foreground placeholder:text-muted-foreground"
                 value={input}
