@@ -155,18 +155,16 @@ export default function Home() {
     }
   }, [isPending, session, router]);
 
-  // Load chat history when switching projects
-  const loadedChatRef = useRef<string | null>(null);
+  // Load chat history when switching projects or when chat data arrives
   useEffect(() => {
-    if (
-      chatData?.messages?.length &&
-      selectedProjectIdFromList &&
-      loadedChatRef.current !== selectedProjectIdFromList
-    ) {
-      loadedChatRef.current = selectedProjectIdFromList;
+    if (!selectedProjectIdFromList || !chatData) return;
+
+    if (chatData.messages?.length) {
       setMessages(deserializeMessages(chatData.messages));
+    } else {
+      setMessages([]);
     }
-  }, [chatData, selectedProjectIdFromList, setMessages]);
+  }, [selectedProjectIdFromList, chatData, setMessages]);
 
   // Derive preview URL from the latest getPreviewUrl tool result or persisted sandbox data
   let previewInfo: { url: string; toolCallId?: string } | null = null;
