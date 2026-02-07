@@ -56,7 +56,7 @@ def _project_to_dict(p: Project) -> dict:
     }
 
 
-@router.get("/")
+@router.get("")
 async def list_projects(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -72,7 +72,7 @@ async def list_projects(
     return [_project_to_dict(p) for p in projects]
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_project(
     body: CreateProjectInput,
     request: Request,
@@ -80,7 +80,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new project for the authenticated user."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     project = Project(
         id=cuid(),
         name=body.name,

@@ -14,6 +14,12 @@ from sqlalchemy.ext.asyncio import (
 from models.base import Base
 from models.user import User, Session as UserSession
 
+# In the DB better-auth stores the plain token.
+# The cookie carries "TOKEN.HMAC_SIGNATURE"; _extract_token strips the signature.
+PLAIN_TEST_TOKEN = "test-session-token"
+# Simulate signed cookie format: TOKEN.SIGNATURE
+SIGNED_TEST_COOKIE = f"{PLAIN_TEST_TOKEN}.fakesignature"
+
 
 # ---------------------------------------------------------------------------
 # In-memory SQLite for tests
@@ -76,7 +82,7 @@ async def test_session(db_session: AsyncSession, test_user: User) -> UserSession
     session = UserSession(
         id="test-session-id",
         userId=test_user.id,
-        token="test-session-token",
+        token=PLAIN_TEST_TOKEN,
         expiresAt=datetime.now(timezone.utc) + timedelta(days=7),
         ipAddress="127.0.0.1",
         userAgent="test-agent",
@@ -121,7 +127,7 @@ async def auth_client(
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
-    cookies = {"better-auth.session_token": test_session.token}
+    cookies = {"better-auth.session_token": SIGNED_TEST_COOKIE}
     async with AsyncClient(
         transport=transport, base_url="http://test", cookies=cookies
     ) as c:

@@ -66,6 +66,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/api/auth/"):
             return await call_next(request)
 
+        # Sandbox routes are called server-to-server (Next.js → FastAPI)
+        if request.url.path.startswith("/sandbox/"):
+            return await call_next(request)
+
         # Origin check
         origin = _get_origin(request)
         if not _is_trusted_origin(origin):

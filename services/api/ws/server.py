@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from urllib.parse import unquote
 
 import socketio
 from sqlalchemy import select
@@ -10,6 +11,15 @@ from models.base import async_session
 from models.user import Session, User
 
 logger = logging.getLogger("socketio")
+
+
+def _extract_token(signed_cookie: str) -> str | None:
+    """Extract the plain token from a better-auth signed cookie (TOKEN.SIGNATURE)."""
+    value = unquote(signed_cookie)
+    last_dot = value.rfind(".")
+    if last_dot < 1:
+        return value
+    return value[:last_dot]
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
@@ -46,7 +56,7 @@ async def connect(sid, environ, auth_data):
         stmt = (
             select(Session)
             .options(joinedload(Session.user))
-            .where(Session.token == token)
+            .where(Session.token == _extract_token(token))
         )
         result = await db.execute(stmt)
         session = result.unique().scalar_one_or_none()

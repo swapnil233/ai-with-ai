@@ -71,7 +71,7 @@ describe("projects-queries", () => {
     });
 
     expect(result.current.data).toEqual(mockProjects);
-    expect(mockFetch).toHaveBeenCalledWith("http://localhost:4000/api/projects", {
+    expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
       credentials: "include",
     });
   });
@@ -150,10 +150,10 @@ describe("projects-queries", () => {
       "project-existing",
     ]);
     expect(cachedDetail).toEqual(createdProject);
-    expect(mockFetch).toHaveBeenNthCalledWith(1, "http://localhost:4000/api/security/csrf-token", {
+    expect(mockFetch).toHaveBeenNthCalledWith(1, "/api/security/csrf-token", {
       credentials: "include",
     });
-    expect(mockFetch).toHaveBeenNthCalledWith(2, "http://localhost:4000/api/projects", {
+    expect(mockFetch).toHaveBeenNthCalledWith(2, "/api/projects", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

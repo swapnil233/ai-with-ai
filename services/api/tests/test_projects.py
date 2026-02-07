@@ -4,13 +4,13 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_list_projects_unauthenticated(client: AsyncClient):
-    response = await client.get("/api/projects/")
+    response = await client.get("/api/projects")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_list_projects_empty(auth_client: AsyncClient):
-    response = await auth_client.get("/api/projects/")
+    response = await auth_client.get("/api/projects")
     assert response.status_code == 200
     assert response.json() == []
 
@@ -22,7 +22,7 @@ async def test_create_project(auth_client: AsyncClient):
     csrf_token = csrf_resp.json()["csrfToken"]
 
     response = await auth_client.post(
-        "/api/projects/",
+        "/api/projects",
         json={"name": "My Project", "description": "A test project"},
         headers={
             "x-csrf-token": csrf_token,
@@ -44,7 +44,7 @@ async def test_create_project_empty_name(auth_client: AsyncClient):
     csrf_token = csrf_resp.json()["csrfToken"]
 
     response = await auth_client.post(
-        "/api/projects/",
+        "/api/projects",
         json={"name": ""},
         headers={
             "x-csrf-token": csrf_token,
@@ -69,7 +69,7 @@ async def test_create_and_get_project(auth_client: AsyncClient):
 
     # Create
     create_resp = await auth_client.post(
-        "/api/projects/",
+        "/api/projects",
         json={"name": "Test Project"},
         headers={
             "x-csrf-token": csrf_token,
@@ -92,7 +92,7 @@ async def test_create_and_list_projects(auth_client: AsyncClient):
     csrf_token = csrf_resp.json()["csrfToken"]
 
     await auth_client.post(
-        "/api/projects/",
+        "/api/projects",
         json={"name": "Project A"},
         headers={
             "x-csrf-token": csrf_token,
@@ -100,7 +100,7 @@ async def test_create_and_list_projects(auth_client: AsyncClient):
         },
     )
     await auth_client.post(
-        "/api/projects/",
+        "/api/projects",
         json={"name": "Project B"},
         headers={
             "x-csrf-token": csrf_token,
@@ -108,7 +108,7 @@ async def test_create_and_list_projects(auth_client: AsyncClient):
         },
     )
 
-    list_resp = await auth_client.get("/api/projects/")
+    list_resp = await auth_client.get("/api/projects")
     assert list_resp.status_code == 200
     projects = list_resp.json()
     assert len(projects) == 2
