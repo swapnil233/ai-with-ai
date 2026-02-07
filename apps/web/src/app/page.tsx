@@ -525,26 +525,19 @@ export default function Home() {
                 <PromptInputSubmit status={status} onStop={stop} disabled={!input.trim()} />
               </PromptInputFooter>
             </PromptInput>
-            <div className="mt-3 flex flex-col items-center gap-1">
-              {error && <span className="text-xs text-red-500">Error: {error.message}</span>}
-              {projectsError && (
-                <span className="text-xs text-red-500">Projects: {projectsError.message}</span>
-              )}
-              {createProjectMutation.isError && (
-                <span className="text-xs text-red-500">
-                  Create project: {createProjectMutation.error.message}
-                </span>
-              )}
-              {status === "submitted" && (
-                <span className="text-xs text-muted-foreground">Sending message...</span>
-              )}
-              {status === "streaming" && (
-                <span className="text-xs text-muted-foreground">AI is responding...</span>
-              )}
-              <span className="text-xs text-muted-foreground" suppressHydrationWarning>
-                {isPending ? "Checking session..." : (session?.user?.email ?? "")}
-              </span>
-            </div>
+            {(error || projectsError || createProjectMutation.isError) && (
+              <div className="mt-2 flex flex-col items-center gap-1">
+                {error && <span className="text-xs text-red-500">Error: {error.message}</span>}
+                {projectsError && (
+                  <span className="text-xs text-red-500">Projects: {projectsError.message}</span>
+                )}
+                {createProjectMutation.isError && (
+                  <span className="text-xs text-red-500">
+                    Create project: {createProjectMutation.error.message}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
