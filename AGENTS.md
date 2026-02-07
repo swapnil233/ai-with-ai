@@ -40,6 +40,9 @@
 - **API proxying**: Next.js rewrites proxy `/api/projects`, `/api/user`, `/api/security`, `/sandbox`, `/health` to FastAPI at `:4000`. Frontend code uses relative URLs (empty `API_BASE_URL`). This avoids cross-origin cookie issues.
 - **Database sharing**: Prisma owns DDL (schema, migrations) in `packages/database`. SQLAlchemy reads/writes the same tables. `DATABASE_URL` uses `postgresql://`; FastAPI's `config.py` auto-converts to `postgresql+asyncpg://`. Never use Alembic.
 - **Route paths**: FastAPI routes use empty-string paths (`@router.get("")`) not `"/"` to avoid 307 trailing-slash redirects that break cookie forwarding.
+- **Datetime columns**: Prisma uses `TIMESTAMP WITHOUT TIME ZONE`. Python code must pass naive UTC datetimes (`datetime.now(timezone.utc).replace(tzinfo=None)`), not timezone-aware ones. asyncpg rejects the mismatch.
+- **CSRF exemptions**: `/sandbox/*` paths are exempt from CSRF (server-to-server calls from Next.js chat tools). See `middleware/csrf.py`.
+- **Sandbox tool calls**: Chat tools in `apps/web/src/app/api/chat/tools.ts` call FastAPI sandbox endpoints directly using `API_URL` (not browser-proxied). The sandbox manager (`services/sandbox_manager.py`) creates parent directories with `mkdir -p` before writing files.
 - **Error format**: All API errors return `{"error": "message"}` JSON.
 
 ## Testing Guidelines

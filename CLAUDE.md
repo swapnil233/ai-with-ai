@@ -125,6 +125,28 @@ See `dependencies/auth.py` → `_extract_token()`. The same logic applies in `ws
 
 **Do NOT hash the token** before querying — the DB stores plain tokens. Do NOT use the full signed cookie value — strip the `.SIGNATURE` suffix first.
 
+### Datetime Columns (Prisma ↔ asyncpg)
+
+Prisma uses `TIMESTAMP WITHOUT TIME ZONE` by default. asyncpg is strict: it rejects timezone-aware Python datetimes for these columns. Always strip tzinfo before writing:
+
+```python
+now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
+```
+
+When **comparing** datetimes read from the DB (e.g., `session.expiresAt`), add tzinfo back: `session.expiresAt.replace(tzinfo=timezone.utc)`.
+
+### CSRF Middleware Exemptions
+
+The CSRF middleware in `middleware/csrf.py` skips:
+
+- Safe methods (`GET`, `HEAD`, `OPTIONS`)
+- Auth paths (`/api/auth/*`) — handled by better-auth
+- Sandbox paths (`/sandbox/*`) — server-to-server calls from Next.js chat tools (no browser cookies/CSRF tokens)
+
+### Sandbox Tool Calls
+
+Chat tools (`apps/web/src/app/api/chat/tools.ts`) call FastAPI sandbox endpoints server-to-server using `API_URL` (defaults to `http://localhost:4000`). These are **not** proxied through Next.js rewrites — they go directly from the Next.js server process to FastAPI.
+
 ### FastAPI Route Registration
 
 Routes use empty-string paths (`@router.get("")`, `@router.post("")`) — **not** `"/"`. FastAPI's default `redirect_slashes=True` would 307-redirect `/api/projects` to `/api/projects/`, which breaks cookie forwarding through the Next.js proxy.
