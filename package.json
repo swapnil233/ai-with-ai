@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bash -c 'bash scripts/sandbox.sh & SANDBOX_PID=$!; trap \"kill $SANDBOX_PID 2>/dev/null\" EXIT; turbo dev'",
+    "dev": "bash scripts/dev.sh",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
@@ -11,9 +11,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
     "db:start": "docker compose -f docker/docker-compose.yml up postgres minio minio-init -d",
-    "db:generate": "turbo db:generate",
-    "db:push": "turbo db:push",
-    "db:migrate": "turbo db:migrate",
+    "db:generate": "pnpm --filter @ai-app-builder/database db:generate",
+    "db:push": "pnpm --filter @ai-app-builder/database db:push",
+    "db:migrate": "pnpm --filter @ai-app-builder/database db:migrate",
     "setup": "pnpm db:start && sleep 2 && pnpm db:push",
     "prepare": "husky"
   },

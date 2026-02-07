@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-const SANDBOX_SERVICE_URL = process.env.SANDBOX_SERVICE_URL ?? "http://localhost:8000";
+const SANDBOX_SERVICE_URL = process.env.SANDBOX_SERVICE_URL ?? "http://localhost:4000";
 
 async function callSidecar(endpoint: string, body: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${SANDBOX_SERVICE_URL}${endpoint}`, {

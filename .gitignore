@@ -32,8 +32,8 @@ coverage
 .nyc_output
 
 # Prisma
-apps/api/prisma/*.db
-apps/api/prisma/*.db-journal
+packages/database/prisma/*.db
+packages/database/prisma/*.db-journal
 
 # Docker
 docker/data

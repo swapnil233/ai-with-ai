@@ -12,6 +12,9 @@ COPY turbo.json ./
 # Copy package.json files for all packages
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+# Prisma postinstall runs during `pnpm install`, so schema must exist at install time
+COPY packages/database/prisma ./packages/database/prisma
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile || pnpm install
@@ -19,6 +22,13 @@ RUN pnpm install --frozen-lockfile || pnpm install
 # Copy source code
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
+COPY packages/database ./packages/database
+
+# Generate Prisma client
+WORKDIR /app/packages/database
+RUN pnpm db:generate || true
+
+WORKDIR /app
 
 EXPOSE 3000
 
