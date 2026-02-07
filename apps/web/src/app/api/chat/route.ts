@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { systemPrompt } from "./system-prompt";
 import { sandboxTools } from "./tools";
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const modelMessages = await convertToModelMessages(messages);
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-5-20250929"),
+    model: openai("gpt-5.2-2025-12-11"),
     system: systemPrompt,
     messages: modelMessages,
     tools: sandboxTools,
